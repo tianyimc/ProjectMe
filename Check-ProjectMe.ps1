@@ -63,4 +63,25 @@ if (Test-Path $timelinePath -PathType Leaf) {
     if (($priorities | Select-Object -Unique).Count -ne $priorities.Count) { throw "Duplicate timeline priority on date: $($group.Name)" }
   }
 }
-Write-Output "ProjectMe check passed: $($articles.Count) articles."
+$pluginsPath = Join-Path $root 'plugins'
+$pluginCount = 0
+if (Test-Path $pluginsPath -PathType Container) {
+  foreach ($folder in @(Get-ChildItem -LiteralPath $pluginsPath -Directory)) {
+    $manifestPath = Join-Path $folder.FullName 'plugin.json'
+    if (-not (Test-Path $manifestPath -PathType Leaf)) { throw "Plugin manifest missing: $manifestPath" }
+    try { $manifest = Get-Content -Raw -Encoding UTF8 $manifestPath | ConvertFrom-Json } catch { throw "Invalid plugin manifest: $manifestPath" }
+    if ([string]::IsNullOrWhiteSpace([string]$manifest.entry)) { throw "Plugin entry is required: $manifestPath" }
+    if ($null -ne $manifest.PSObject.Properties['cli'] -and $null -ne $manifest.cli) {
+      if ([string]::IsNullOrWhiteSpace([string]$manifest.cli.label)) { throw "Plugin cli.label is required: $manifestPath" }
+      if ([string]::IsNullOrWhiteSpace([string]$manifest.cli.function)) { throw "Plugin cli.function is required: $manifestPath" }
+    }
+    if ($null -ne $manifest.PSObject.Properties['gui'] -and $null -ne $manifest.gui) {
+      if ([string]::IsNullOrWhiteSpace([string]$manifest.gui.function)) { throw "Plugin gui.function is required: $manifestPath" }
+      if (@($manifest.gui.controls | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -eq 0) { throw "Plugin gui.controls is required: $manifestPath" }
+    }
+    $entryPath = Join-Path $folder.FullName ([string]$manifest.entry)
+    if (-not (Test-Path $entryPath -PathType Leaf)) { throw "Plugin entry file missing: $entryPath" }
+    $pluginCount++
+  }
+}
+Write-Output "ProjectMe check passed: $($articles.Count) articles, $pluginCount plugins."

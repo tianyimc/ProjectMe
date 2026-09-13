@@ -1,4 +1,4 @@
-try {
+﻿try {
   $ErrorActionPreference = 'Stop'
   $root = Split-Path -Parent $MyInvocation.MyCommand.Path
   . (Join-Path $root 'ProjectMe.Common.ps1')
@@ -217,56 +217,6 @@ try {
     return $dialog.ShowDialog()
   }
 
-  function Update-DefaultObsidianSourceUi {
-    $sourceRoot = [string]$script:config.obsidian.sourceRoot
-    (Get-Control 'DefaultObsidianSourceBox').Text = $sourceRoot
-    (Get-Control 'DefaultObsidianSourceBox').ToolTip = $sourceRoot
-    if ([string]::IsNullOrWhiteSpace($sourceRoot)) {
-      (Get-Control 'DefaultObsidianSourceHintText').Text = '未设置默认源，导入时会从系统默认位置打开目录选择窗口。'
-    } elseif (Test-Path -LiteralPath $sourceRoot -PathType Container) {
-      (Get-Control 'DefaultObsidianSourceHintText').Text = '已保存默认源。导入时目录选择窗口会默认定位到这里。'
-    } else {
-      (Get-Control 'DefaultObsidianSourceHintText').Text = '已保存的默认源当前不存在，请重新选择目录并保存。'
-    }
-  }
-
-  function Select-ObsidianFolder {
-    $shell = New-Object -ComObject Shell.Application
-    $initialPath = [string]$script:config.obsidian.sourceRoot
-    if ($initialPath -and -not (Test-Path -LiteralPath $initialPath -PathType Container)) {
-      Write-ProjectLog "默认 Obsidian 导入源不存在，已改为系统默认位置：$initialPath" 'WARN' $root
-      $initialPath = ''
-      Show-Message '已保存的默认 Obsidian 导入源不存在，本次将从系统默认位置打开目录选择窗口。' '默认导入源不可用'
-    }
-    $folder = $shell.BrowseForFolder(0, '选择 Obsidian 文集根目录', 0, $initialPath)
-    if ($folder) { return $folder.Self.Path }
-    return $null
-  }
-
-  function Save-DefaultObsidianSourceFromGui {
-    param([AllowEmptyString()][string]$SourceRoot)
-    $source = if ($PSBoundParameters.ContainsKey('SourceRoot')) { $SourceRoot } else { (Get-Control 'DefaultObsidianSourceBox').Text.Trim() }
-    if (-not [string]::IsNullOrWhiteSpace($source) -and -not (Test-Path -LiteralPath $source -PathType Container)) {
-      Show-Error '默认 Obsidian 导入源必须是一个已存在的文件夹。' '无法保存设置'
-      return
-    }
-    try {
-      Save-ProjectObsidianSourceRoot -Root $root -SourceRoot $source
-      $script:config.obsidian.sourceRoot = $source
-      Update-DefaultObsidianSourceUi
-      Write-ProjectLog "WPF GUI 保存默认 Obsidian 导入源：$source" 'INFO' $root
-      Show-Message '默认 Obsidian 导入源已保存。' '设置已保存'
-    } catch {
-      Write-ProjectLog ("WPF GUI 保存默认 Obsidian 导入源失败：{0}`n{1}" -f $_.Exception.Message, $_.ScriptStackTrace) 'ERROR' $root
-      Show-Error $_.Exception.Message '保存设置失败'
-    }
-  }
-
-  function Import-ObsidianFromGui {
-    $source = Select-ObsidianFolder; if ([string]::IsNullOrWhiteSpace($source)) { return }; $importScript = Join-Path $root 'Import-ObsidianCorpus.ps1'
-    try { $preview = (& $importScript -SourceRoot $source -WhatIf 2>&1 | Out-String); $confirm = Show-TextDialog 'Obsidian 导入预览' $preview '确认正式导入'; if ($confirm) { $result = (& $importScript -SourceRoot $source 2>&1 | Out-String); Show-TextDialog 'Obsidian 导入完成' $result '关闭' | Out-Null; Refresh-Articles; Write-ProjectLog "WPF GUI 完成 Obsidian 导入：$source" 'INFO' $root } } catch { Write-ProjectLog "WPF GUI Obsidian 导入失败：$($_.Exception.Message)`n$($_.ScriptStackTrace)" 'ERROR' $root; Show-Error $_.Exception.Message 'Obsidian 导入失败' }
-  }
-
   function Ensure-TimelinePriorities([object[]]$Entries) {
     foreach ($group in @($Entries | Where-Object { -not $_.disabled -and $_.date } | Group-Object date)) { $ordered = @($group.Group | Sort-Object @{Expression={ if ($null -ne $_.priority) { [int]$_.priority } else { 999999 } }}, slug); for ($i = 0; $i -lt $ordered.Count; $i++) { if ($null -eq $ordered[$i].PSObject.Properties['priority']) { $ordered[$i] | Add-Member -NotePropertyName priority -NotePropertyValue ($i + 1) -Force } else { $ordered[$i].priority = $i + 1 } } }
   }
@@ -300,13 +250,40 @@ try {
   function Rollback-VersionFromGui { $snapshot = (Get-Control 'SnapshotGrid').SelectedItem; if ($null -eq $snapshot) { Show-Error '请先加载并选择一个快照。'; return }; if ([System.Windows.MessageBox]::Show($script:window,"确认回滚到：$($snapshot.Name)？`n当前项目会先备份到 old\reseted\。",'回滚版本','YesNo','Warning') -ne 'Yes') { return }; try { $backup = Restore-ProjectSnapshot -Root $root -Snapshot $snapshot.FullName; Write-ProjectLog "WPF GUI 回滚成功：$($snapshot.FullName)；备份：$backup" 'INFO' $root; Show-Message "回滚完成。`n回滚前备份：$backup`n`n请关闭并重新启动 ProjectMe。" } catch { Write-ProjectLog "WPF GUI 回滚失败：$($_.Exception.Message)`n$($_.ScriptStackTrace)" 'ERROR' $root; Show-Error $_.Exception.Message '回滚失败' } }
 
   $xamlPath = Join-Path $root 'ProjectMe.Gui.xaml'; $xamlText = [IO.File]::ReadAllText($xamlPath,[Text.UTF8Encoding]::new($true)); $reader = New-Object Xml.XmlNodeReader ([xml]$xamlText); $script:window = [Windows.Markup.XamlReader]::Load($reader); Set-Theme; Set-Fonts
-  $script:window.Title = "$($script:info.title) · $(Get-DisplayVersion $script:info)"; (Get-Control 'SidebarVersionText').Text = Get-DisplayVersion $script:info; (Get-Control 'HeaderSubtitleText').Text = "$($script:info.description) · Windows WPF 管理器"; (Get-Control 'PortBox').Text = [string]$script:config.serve.port; (Get-Control 'MaintenancePortBox').Text = [string]$script:config.serve.port; (Get-Control 'ServiceStatusText').Text = '预览未运行'; (Get-Control 'MaintenanceServiceText').Text = '预览未运行'; (Get-Control 'CurrentVersionText').Text = "当前版本：$(Get-DisplayVersion $script:info)"; Update-DefaultObsidianSourceUi
+  $script:window.Title = "$($script:info.title) · $(Get-DisplayVersion $script:info)"; (Get-Control 'SidebarVersionText').Text = Get-DisplayVersion $script:info; (Get-Control 'HeaderSubtitleText').Text = "$($script:info.description) · Windows WPF 管理器"; (Get-Control 'PortBox').Text = [string]$script:config.serve.port; (Get-Control 'MaintenancePortBox').Text = [string]$script:config.serve.port; (Get-Control 'ServiceStatusText').Text = '预览未运行'; (Get-Control 'MaintenanceServiceText').Text = '预览未运行'; (Get-Control 'CurrentVersionText').Text = "当前版本：$(Get-DisplayVersion $script:info)"
 
   (Get-Control 'ArticlesNavButton').Add_Click({ Set-Page articles }); (Get-Control 'MaintenanceNavButton').Add_Click({ Set-Page maintenance }); (Get-Control 'TimelineNavButton').Add_Click({ Set-Page timeline }); (Get-Control 'AboutNavButton').Add_Click({ Show-AboutDialog })
-  (Get-Control 'ArticleGrid').Add_Sorting({ param($sender, $eventArgs) $propertyName = [string]$eventArgs.Column.SortMemberPath; if (-not $propertyName) { $eventArgs.Handled = $true; return }; if ($script:articleSortProperty -ne $propertyName) { $script:articleSortProperty = $propertyName; $script:articleSortAscending = $true } elseif ($script:articleSortAscending) { $script:articleSortAscending = $false } else { $script:articleSortProperty = ''; $script:articleSortAscending = $true }; $eventArgs.Handled = $true; Refresh-Articles }); (Get-Control 'SearchBox').Add_TextChanged({ Refresh-Articles }); (Get-Control 'ArticleGrid').Add_SelectionChanged({ Load-SelectedArticle }); (Get-Control 'RefreshButton').Add_Click({ Refresh-Articles }); (Get-Control 'NewArticleButton').Add_Click({ New-ArticleFromGui }); (Get-Control 'ImportObsidianButton').Add_Click({ Import-ObsidianFromGui }); (Get-Control 'SaveArticleButton').Add_Click({ try { Save-SelectedArticle } catch { Show-Error $_.Exception.Message } }); (Get-Control 'OpenArticleButton').Add_Click({ if ($script:selectedArticle) { $target = if ($script:selectedArticle.path) { Join-Path $root ([string]$script:selectedArticle.path) } else { Join-Path $root "articles\$($script:selectedArticle.file)" }; Start-Process notepad.exe $target } }); (Get-Control 'DeleteArticleButton').Add_Click({ Delete-SelectedArticleFromGui })
+  (Get-Control 'ArticleGrid').Add_Sorting({ param($sender, $eventArgs) $propertyName = [string]$eventArgs.Column.SortMemberPath; if (-not $propertyName) { $eventArgs.Handled = $true; return }; if ($script:articleSortProperty -ne $propertyName) { $script:articleSortProperty = $propertyName; $script:articleSortAscending = $true } elseif ($script:articleSortAscending) { $script:articleSortAscending = $false } else { $script:articleSortProperty = ''; $script:articleSortAscending = $true }; $eventArgs.Handled = $true; Refresh-Articles }); (Get-Control 'SearchBox').Add_TextChanged({ Refresh-Articles }); (Get-Control 'ArticleGrid').Add_SelectionChanged({ Load-SelectedArticle }); (Get-Control 'RefreshButton').Add_Click({ Refresh-Articles }); (Get-Control 'NewArticleButton').Add_Click({ New-ArticleFromGui }); (Get-Control 'SaveArticleButton').Add_Click({ try { Save-SelectedArticle } catch { Show-Error $_.Exception.Message } }); (Get-Control 'OpenArticleButton').Add_Click({ if ($script:selectedArticle) { $target = if ($script:selectedArticle.path) { Join-Path $root ([string]$script:selectedArticle.path) } else { Join-Path $root "articles\$($script:selectedArticle.file)" }; Start-Process notepad.exe $target } }); (Get-Control 'DeleteArticleButton').Add_Click({ Delete-SelectedArticleFromGui })
   (Get-Control 'StartPreviewButton').Add_Click({ try { Start-Preview } catch { Show-Error $_.Exception.Message '启动预览失败' } }); (Get-Control 'StopPreviewButton').Add_Click({ Stop-Preview }); (Get-Control 'OpenSiteButton').Add_Click({ Start-Process "http://localhost:$((Get-Control 'PortBox').Text)/" }); (Get-Control 'CheckButton').Add_Click({ Run-ProjectCheck }); (Get-Control 'LogButton').Add_Click({ Open-Log })
-  (Get-Control 'MaintenanceStartButton').Add_Click({ try { Start-Preview (Get-Control 'MaintenancePortBox') } catch { Show-Error $_.Exception.Message '启动预览失败' } }); (Get-Control 'MaintenanceStopButton').Add_Click({ Stop-Preview }); (Get-Control 'MaintenanceForceStopButton').Add_Click({ if ([System.Windows.MessageBox]::Show($script:window,'会强制停止占用端口号4173、4174的进程','强停所有预览','YesNo','Warning') -eq 'Yes') { Stop-Preview; Show-Message '已强制停止 4173、4174 端口上的预览进程。' '强停所有预览' } }); (Get-Control 'MaintenanceOpenSiteButton').Add_Click({ Start-Process "http://localhost:$((Get-Control 'MaintenancePortBox').Text)/" }); (Get-Control 'MaintenanceCheckButton').Add_Click({ Run-ProjectCheck }); (Get-Control 'MaintenanceLogButton').Add_Click({ Open-Log }); (Get-Control 'BrowseDefaultObsidianSourceButton').Add_Click({ $source = Select-ObsidianFolder; if (-not [string]::IsNullOrWhiteSpace($source)) { (Get-Control 'DefaultObsidianSourceBox').Text = $source; (Get-Control 'DefaultObsidianSourceBox').ToolTip = $source; (Get-Control 'DefaultObsidianSourceHintText').Text = '已选择新目录，点击“保存设置”后生效。' } }); (Get-Control 'SaveDefaultObsidianSourceButton').Add_Click({ Save-DefaultObsidianSourceFromGui }); (Get-Control 'ClearDefaultObsidianSourceButton').Add_Click({ Save-DefaultObsidianSourceFromGui -SourceRoot '' }); (Get-Control 'LoadSnapshotsButton').Add_Click({ Load-SnapshotsFromGui }); (Get-Control 'RollbackButton').Add_Click({ Rollback-VersionFromGui })
+  (Get-Control 'MaintenanceStartButton').Add_Click({ try { Start-Preview (Get-Control 'MaintenancePortBox') } catch { Show-Error $_.Exception.Message '启动预览失败' } }); (Get-Control 'MaintenanceStopButton').Add_Click({ Stop-Preview }); (Get-Control 'MaintenanceForceStopButton').Add_Click({ if ([System.Windows.MessageBox]::Show($script:window,'会强制停止占用端口号4173、4174的进程','强停所有预览','YesNo','Warning') -eq 'Yes') { Stop-Preview; Show-Message '已强制停止 4173、4174 端口上的预览进程。' '强停所有预览' } }); (Get-Control 'MaintenanceOpenSiteButton').Add_Click({ Start-Process "http://localhost:$((Get-Control 'MaintenancePortBox').Text)/" }); (Get-Control 'MaintenanceCheckButton').Add_Click({ Run-ProjectCheck }); (Get-Control 'MaintenanceLogButton').Add_Click({ Open-Log }); (Get-Control 'LoadSnapshotsButton').Add_Click({ Load-SnapshotsFromGui }); (Get-Control 'RollbackButton').Add_Click({ Rollback-VersionFromGui })
   (Get-Control 'TimelineSearchBox').Add_TextChanged({ Refresh-Timeline }); (Get-Control 'TimelineRefreshButton').Add_Click({ Refresh-Timeline }); (Get-Control 'TimelineGrid').Add_SelectionChanged({ Load-TimelineEntry }); (Get-Control 'TimelineSelectButton').Add_Click({ Select-TimelineArticle }); (Get-Control 'TimelineChooseArticleButton').Add_Click({ Select-TimelineArticle }); (Get-Control 'TimelineSaveButton').Add_Click({ try { Save-TimelineEntryFromGui } catch { Show-Error $_.Exception.Message } }); (Get-Control 'TimelineRemoveButton').Add_Click({ Remove-TimelineEntryFromGui })
+  # --- 插件宿主 ---
+  # 插件在 plugins\<插件名>\plugin.json 中声明自己占用的 GUI 控件；这些控件在 XAML 中默认隐藏，
+  # 只有插件启用且初始化成功时才显示，因此插件被禁用或整个文件夹被删除时入口都不会出现。
+  $script:plugins = @(Get-ProjectPlugins -Root $root -Config $script:config | Where-Object { $_.Enabled })
+  $script:claimedControls = @{}
+  foreach ($plugin in $script:plugins) {
+    $guiFunction = ''
+    if ($null -ne $plugin.Manifest.PSObject.Properties['gui'] -and $null -ne $plugin.Manifest.gui) { $guiFunction = [string]$plugin.Manifest.gui.function }
+    if ([string]::IsNullOrWhiteSpace($guiFunction)) { Write-ProjectLog "已启用插件：$($plugin.Id)（无 GUI 入口）" 'INFO' $root; continue }
+    try {
+      . ($plugin.EntryPath)
+      & $guiFunction
+      foreach ($controlName in @($plugin.Manifest.gui.controls)) {
+        $name = [string]$controlName
+        if ([string]::IsNullOrWhiteSpace($name)) { continue }
+        if ($script:claimedControls.ContainsKey($name)) { Write-ProjectLog "插件 $($plugin.Id) 与 $($script:claimedControls[$name]) 都声明了控件 $name，以 $($plugin.Id) 为准。" 'WARN' $root }
+        $script:claimedControls[$name] = $plugin.Id
+        $control = $script:window.FindName($name)
+        if ($null -ne $control) { $control.Visibility = 'Visible' }
+        else { Write-ProjectLog "插件 $($plugin.Id) 声明的控件不存在：$name" 'WARN' $root }
+      }
+      Write-ProjectLog "已启用插件：$($plugin.Id)" 'INFO' $root
+    } catch {
+      Write-ProjectLog "插件 $($plugin.Id) 初始化失败，入口保持隐藏：$($_.Exception.Message)`n$($_.ScriptStackTrace)" 'ERROR' $root
+    }
+  }
+
   $script:window.Add_Closed({ Stop-Preview }); (Get-Control 'AuthorLink').Add_RequestNavigate({ param($sender, $eventArgs) try { Start-Process $eventArgs.Uri.AbsoluteUri } catch { }; $eventArgs.Handled = $true }); Refresh-Articles; Set-Page articles; [void]$script:window.ShowDialog()
 } catch {
   $message = "WPF GUI 启动失败：$($_.Exception.Message)"; try { Write-ProjectLog "$message`n$($_.ScriptStackTrace)" 'ERROR' $root } catch { }; try { [System.Windows.MessageBox]::Show("$message`n`n日志：$root\logs\projectme-cli.log",'ProjectMe WPF 启动失败','OK','Error') | Out-Null } catch { }; Write-Host "`n$message" -ForegroundColor Red; Write-Host "详细信息已写入：$root\logs\projectme-cli.log"; Read-Host '按 Enter 关闭此窗口'; exit 1

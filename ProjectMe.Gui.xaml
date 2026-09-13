@@ -111,7 +111,7 @@
           <TextBox x:Name="SearchBox" Width="230" Margin="0,0,10,0" ToolTip="搜索文章标题、类别或节"/>
           <Button x:Name="RefreshButton" Content="刷新"/>
           <Button x:Name="NewArticleButton" Content="新建文章" Style="{StaticResource PrimaryButton}"/>
-          <Button x:Name="ImportObsidianButton" Content="从 Obsidian 导入" Style="{StaticResource PurpleButton}" Margin="0"/>
+          <Button x:Name="ImportObsidianButton" Content="从 Obsidian 导入" Style="{StaticResource PurpleButton}" Margin="0" Visibility="Collapsed"/>
         </StackPanel>
       </Grid>
       <Grid x:Name="MaintenanceHeaderPanel" Visibility="Collapsed">
@@ -181,7 +181,7 @@
               <TextBlock x:Name="MaintenanceServiceText" Foreground="{DynamicResource TextSecondary}" Margin="0,8,0,0" TextWrapping="Wrap"/>
             </StackPanel>
           </Border>
-          <Border Background="{DynamicResource SurfaceBackground}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="24" Margin="0,0,0,16">
+          <Border x:Name="ObsidianImportPanel" Visibility="Collapsed" Background="{DynamicResource SurfaceBackground}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="24" Margin="0,0,0,16">
             <StackPanel>
               <TextBlock Text="Obsidian 导入" Style="{StaticResource TitleTextStyle}" FontSize="18" Foreground="{DynamicResource TextPrimary}"/>
               <TextBlock Text="设置从“从 Obsidian 导入”打开目录选择窗口时的默认位置。" Foreground="{DynamicResource TextSecondary}" Margin="0,4,0,16" TextWrapping="Wrap"/>

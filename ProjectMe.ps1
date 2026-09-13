@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 . (Join-Path $root 'ProjectMe.Common.ps1')
 Write-ProjectLog 'CLI 启动'
@@ -115,34 +115,6 @@ function New-ArticleInteractive {
   $reading = Read-Host "阅读时间（回车使用 $($config.newArticle.readingTime)）"; if ($reading) { $params['ReadingTime'] = $reading } else { $params['ReadingTime'] = $config.newArticle.readingTime }
   & (Join-Path $root 'New-Article.ps1') @params; Pause-Menu
 }
-function Import-ObsidianInteractive {
-  $source = Read-Host "请输入 Obsidian 文集根目录（回车使用默认值“$($config.obsidian.sourceRoot)”）"
-  if ([string]::IsNullOrWhiteSpace($source)) { $source = $config.obsidian.sourceRoot }
-  if ([string]::IsNullOrWhiteSpace($source)) { return }
-  try {
-    Write-ProjectLog "开始 Obsidian 导入，源目录：$source"
-    $preview = Read-Host "是否先预览导入结果？（Y/N，默认 $($config.obsidian.preview)）"
-    $importScript = Join-Path $root 'Import-ObsidianCorpus.ps1'
-    $isPreview = if ($preview -eq '') { [bool]$config.obsidian.preview } else { $preview -match '^[yY是]' }
-    if ($isPreview) { & $importScript -SourceRoot $source -WhatIf }
-    else { & $importScript -SourceRoot $source }
-    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw "导入脚本退出，代码：$LASTEXITCODE" }
-    if ($isPreview) {
-      if ((Read-Host '预览完成，是否执行实际导入？（Y/N）') -match '^[yY是]') {
-        & $importScript -SourceRoot $source
-        if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw "导入脚本退出，代码：$LASTEXITCODE" }
-      }
-    }
-    Write-ProjectLog 'Obsidian 导入流程结束'
-  } catch {
-    Write-ProjectLog ("Obsidian 导入失败：{0}`n{1}" -f $_.Exception.Message, $_.ScriptStackTrace) 'ERROR'
-    Write-Host "`n导入失败：$($_.Exception.Message)" -ForegroundColor Red
-    Write-Host "详细信息已写入：$root\logs\projectme-cli.log"
-    Pause-Menu
-    return
-  }
-  Pause-Menu
-}
 function Show-Log {
   $logPath = Join-Path $root 'logs\projectme-cli.log'
   if (-not (Test-Path $logPath)) { Write-Host '暂时没有日志。'; Pause-Menu; return }
@@ -211,4 +183,72 @@ function Rollback-Version {
     throw
   }
 }
-while ($true) { $info = Get-ProjectInfo; Clear-Menu; Write-Host "$(Get-DisplayVersion $info)" -ForegroundColor Cyan; Write-Host "$($info.title) · 作者：$($info.author) · $($info.copyright)`n"; Write-Host "1. 文章列表`n2. 编辑文章属性`n3. 删除文章`n4. GUI 窗口管理器`n5. Check-ProjectMe`n6. New-Article`n7. 从 Obsidian 导入`n8. serve`n9. 服务状态`n10. 停止后台服务`n11. 查看 CLI 日志`n12. 时间轴`n13. 回滚版本`n14. 关于/版本信息`n0. 退出"; $choice = Read-Host '请选择'; if ([Console]::IsInputRedirected -and [string]::IsNullOrWhiteSpace($choice)) { break }; Write-ProjectLog "菜单选择：$choice"; try { switch ($choice) { '1' { Show-ArticleList }; '2' { Edit-Article }; '3' { Remove-ArticleInteractive }; '4' { Start-Gui }; '5' { Invoke-Script 'Check-ProjectMe.ps1' }; '6' { New-ArticleInteractive }; '7' { Import-ObsidianInteractive }; '8' { Serve-Menu }; '9' { Service-Status; Pause-Menu }; '10' { Service-Stop }; '11' { Show-Log }; '12' { Timeline-Menu }; '13' { if (Rollback-Version) { exit } }; '14' { $currentLog = Get-CurrentChangelog -Root $root -Version $info.version; Write-Host "$($info.description)`n版本 $(Get-DisplayVersion $info)`n作者 $($info.author)`n作者主页 $($info.authorUrl)`n许可证 $($info.licenseName)`n$($info.copyright)`n`n当前版本更新日志：$currentLog"; Pause-Menu }; '0' { Write-ProjectLog 'CLI 退出'; exit } } } catch { Write-ProjectLog ("未处理异常：{0}`n{1}" -f $_.Exception.Message, $_.ScriptStackTrace) 'ERROR'; Write-Host "`n发生错误：$($_.Exception.Message)" -ForegroundColor Red; Write-Host "详细信息已写入：$root\logs\projectme-cli.log"; Pause-Menu } }
+$pluginMenuItems = @(Get-ProjectPlugins -Root $root -Config $config | Where-Object { $_.Enabled -and $null -ne $_.Manifest.PSObject.Properties['cli'] -and $null -ne $_.Manifest.cli })
+$menuItems = @(
+  [pscustomobject]@{ Number = 1; Label = '文章列表'; Kind = 'builtin'; Action = 'list' }
+  [pscustomobject]@{ Number = 2; Label = '编辑文章属性'; Kind = 'builtin'; Action = 'edit' }
+  [pscustomobject]@{ Number = 3; Label = '删除文章'; Kind = 'builtin'; Action = 'remove' }
+  [pscustomobject]@{ Number = 4; Label = 'GUI 窗口管理器'; Kind = 'builtin'; Action = 'gui' }
+  [pscustomobject]@{ Number = 5; Label = 'Check-ProjectMe'; Kind = 'builtin'; Action = 'check' }
+  [pscustomobject]@{ Number = 6; Label = 'New-Article'; Kind = 'builtin'; Action = 'new' }
+  [pscustomobject]@{ Number = 7; Label = 'serve'; Kind = 'builtin'; Action = 'serve' }
+  [pscustomobject]@{ Number = 8; Label = '服务状态'; Kind = 'builtin'; Action = 'status' }
+  [pscustomobject]@{ Number = 9; Label = '停止后台服务'; Kind = 'builtin'; Action = 'stop' }
+  [pscustomobject]@{ Number = 10; Label = '查看 CLI 日志'; Kind = 'builtin'; Action = 'log' }
+  [pscustomobject]@{ Number = 11; Label = '时间轴'; Kind = 'builtin'; Action = 'timeline' }
+  [pscustomobject]@{ Number = 12; Label = '回滚版本'; Kind = 'builtin'; Action = 'rollback' }
+  [pscustomobject]@{ Number = 13; Label = '关于/版本信息'; Kind = 'builtin'; Action = 'about' }
+)
+foreach ($pluginItem in $pluginMenuItems) {
+  $menuItems += [pscustomobject]@{ Number = $menuItems.Count + 1; Label = [string]$pluginItem.Manifest.cli.label; Kind = 'plugin'; Plugin = $pluginItem }
+}
+foreach ($pluginItem in $pluginMenuItems) { Write-ProjectLog "已启用插件：$($pluginItem.Id)（CLI 菜单 $($menuItems | Where-Object { $_.Plugin -eq $pluginItem } | Select-Object -First 1 | ForEach-Object { $_.Number })）" }
+$menuText = (@($menuItems | ForEach-Object { "$($_.Number). $($_.Label)" }) + '0. 退出') -join "`n"
+
+while ($true) {
+  $info = Get-ProjectInfo
+  Clear-Menu
+  Write-Host "$(Get-DisplayVersion $info)" -ForegroundColor Cyan
+  Write-Host "$($info.title) · 作者：$($info.author) · $($info.copyright)`n"
+  Write-Host $menuText
+  $choice = Read-Host '请选择'
+  if ([Console]::IsInputRedirected -and [string]::IsNullOrWhiteSpace($choice)) { break }
+  Write-ProjectLog "菜单选择：$choice"
+  try {
+    if ($choice -notmatch '^\d+$') { Write-Host '请输入菜单编号。' -ForegroundColor Yellow; Start-Sleep -Milliseconds 500; continue }
+    if ([int]$choice -eq 0) { Write-ProjectLog 'CLI 退出'; exit }
+    $selected = @($menuItems | Where-Object { $_.Number -eq [int]$choice } | Select-Object -First 1)
+    if ($selected.Count -eq 0) { Write-Host '无效的菜单选项。' -ForegroundColor Yellow; Start-Sleep -Milliseconds 500; continue }
+    if ($selected[0].Kind -eq 'plugin') {
+      try {
+        . ($selected[0].Plugin.EntryPath)
+        & ([string]$selected[0].Plugin.Manifest.cli.function)
+      } catch {
+        Write-ProjectLog ("插件执行失败：{0}`n{1}" -f $_.Exception.Message, $_.ScriptStackTrace) 'ERROR'
+        Write-Host "`n插件执行失败：$($_.Exception.Message)" -ForegroundColor Red
+        Pause-Menu
+      }
+      continue
+    }
+    switch ($selected[0].Action) {
+      'list' { Show-ArticleList }
+      'edit' { Edit-Article }
+      'remove' { Remove-ArticleInteractive }
+      'gui' { Start-Gui }
+      'check' { Invoke-Script 'Check-ProjectMe.ps1' }
+      'new' { New-ArticleInteractive }
+      'serve' { Serve-Menu }
+      'status' { Service-Status; Pause-Menu }
+      'stop' { Service-Stop }
+      'log' { Show-Log }
+      'timeline' { Timeline-Menu }
+      'rollback' { if (Rollback-Version) { exit } }
+      'about' { $currentLog = Get-CurrentChangelog -Root $root -Version $info.version; Write-Host "$($info.description)`n版本 $(Get-DisplayVersion $info)`n作者 $($info.author)`n作者主页 $($info.authorUrl)`n许可证 $($info.licenseName)`n$($info.copyright)`n`n当前版本更新日志：$currentLog"; Pause-Menu }
+    }
+  } catch {
+    Write-ProjectLog ("未处理异常：{0}`n{1}" -f $_.Exception.Message, $_.ScriptStackTrace) 'ERROR'
+    Write-Host "`n发生错误：$($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "详细信息已写入：$root\logs\projectme-cli.log"
+    Pause-Menu
+  }
+}

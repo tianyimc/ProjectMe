@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 function Get-ProjectRoot {
   return $PSScriptRoot
@@ -43,6 +43,7 @@ function Get-DefaultProjectConfig {
     obsidian = [pscustomobject]@{ sourceRoot = ''; preview = $true }
     articleList = [pscustomobject]@{ pageSize = 10; groupBySection = $true }
     newArticle = [pscustomobject]@{ tags = @('随笔'); date = ''; readingTime = '3 分钟阅读' }
+    plugins = @{}
   }
 }
 
@@ -62,6 +63,20 @@ function Get-ProjectConfig {
     if ($null -ne $raw.newArticle.tags) { $defaults.newArticle.tags = @($raw.newArticle.tags | ForEach-Object { [string]$_ } | Where-Object { $_ }) }
     if ($null -ne $raw.newArticle.date) { $defaults.newArticle.date = [string]$raw.newArticle.date }
     if ($null -ne $raw.newArticle.readingTime) { $defaults.newArticle.readingTime = [string]$raw.newArticle.readingTime }
+    try {
+      if ($null -ne $raw.plugins) {
+        foreach ($property in @($raw.plugins.PSObject.Properties)) {
+          $value = $property.Value
+          $enabled = $false
+          if ($value -is [bool]) { $enabled = [bool]$value }
+          elseif ($null -ne $value -and $null -ne $value.PSObject.Properties['enabled']) { $enabled = [bool]$value.enabled }
+          else { Write-ProjectLog "插件开关格式无效，按关闭处理：$($property.Name)" 'WARN' $Root }
+          $defaults.plugins[$property.Name] = @{ enabled = $enabled }
+        }
+      }
+    } catch {
+      Write-ProjectLog "插件开关读取失败，全部按默认处理：$($_.Exception.Message)" 'WARN' $Root
+    }
     Write-ProjectLog "已读取配置文件：$path" 'INFO' $Root
   } catch {
     Write-ProjectLog "配置文件读取失败，使用默认配置：$($_.Exception.Message)" 'ERROR' $Root
@@ -81,22 +96,71 @@ function Write-ProjectJsonAtomic {
   }
 }
 
-function Save-ProjectObsidianSourceRoot {
-  param([AllowEmptyString()][string]$SourceRoot = '', [string]$Root = (Get-ProjectRoot))
-  $path = Join-Path $Root 'projectme.config.json'
-  $config = if (Test-Path $path -PathType Leaf) {
-    Get-Content -Raw -Encoding UTF8 $path | ConvertFrom-Json
-  } else {
-    Get-DefaultProjectConfig
+function Test-ProjectPluginEnabled {
+  param([Parameter(Mandatory)][string]$Id, $Config = $null, $Manifest = $null)
+  if ($null -ne $Config -and $Config.plugins -is [hashtable] -and $Config.plugins.ContainsKey($Id)) {
+    return [bool]$Config.plugins[$Id].enabled
   }
-  if ($null -eq $config.PSObject.Properties['obsidian']) {
-    $config | Add-Member -NotePropertyName obsidian -NotePropertyValue ([pscustomobject]@{}) -Force
+  if ($null -ne $Manifest -and $null -ne $Manifest.PSObject.Properties['defaultEnabled'] -and $null -ne $Manifest.defaultEnabled) {
+    return [bool]$Manifest.defaultEnabled
   }
-  if ($null -eq $config.obsidian.PSObject.Properties['sourceRoot']) {
-    $config.obsidian | Add-Member -NotePropertyName sourceRoot -NotePropertyValue '' -Force
+  return $false
+}
+
+function Test-ProjectPluginManifest {
+  param([Parameter(Mandatory)]$Manifest)
+  if ($null -eq $Manifest.PSObject.Properties['entry'] -or [string]::IsNullOrWhiteSpace([string]$Manifest.entry)) { return 'entry is required' }
+  if ($null -ne $Manifest.PSObject.Properties['cli'] -and $null -ne $Manifest.cli) {
+    if ([string]::IsNullOrWhiteSpace([string]$Manifest.cli.label)) { return 'cli.label is required' }
+    if ([string]::IsNullOrWhiteSpace([string]$Manifest.cli.function)) { return 'cli.function is required' }
   }
-  $config.obsidian.sourceRoot = $SourceRoot
-  Write-ProjectJsonAtomic -Value $config -Path $path -Depth 12
+  if ($null -ne $Manifest.PSObject.Properties['gui'] -and $null -ne $Manifest.gui) {
+    if ([string]::IsNullOrWhiteSpace([string]$Manifest.gui.function)) { return 'gui.function is required' }
+    $controls = @($Manifest.gui.controls | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+    if ($controls.Count -eq 0) { return 'gui.controls is required when gui is declared' }
+  }
+  return ''
+}
+
+function Get-ProjectPlugins {
+  param([string]$Root = (Get-ProjectRoot), $Config = $null)
+  $directory = Join-Path $Root 'plugins'
+  if (-not (Test-Path $directory -PathType Container)) { return @() }
+  $plugins = New-Object System.Collections.Generic.List[object]
+  foreach ($folder in @(Get-ChildItem -LiteralPath $directory -Directory | Sort-Object Name)) {
+    $manifestPath = Join-Path $folder.FullName 'plugin.json'
+    if (-not (Test-Path $manifestPath -PathType Leaf)) {
+      Write-ProjectLog "插件缺少 plugin.json，已跳过：$($folder.Name)" 'WARN' $Root
+      continue
+    }
+    try {
+      $manifest = Get-Content -Raw -Encoding UTF8 $manifestPath | ConvertFrom-Json
+    } catch {
+      Write-ProjectLog "插件清单无法解析，已跳过：$($folder.Name)：$($_.Exception.Message)" 'ERROR' $Root
+      continue
+    }
+    $problem = Test-ProjectPluginManifest -Manifest $manifest
+    if ($problem) {
+      Write-ProjectLog "插件清单无效，已跳过：$($folder.Name)：$problem" 'ERROR' $Root
+      continue
+    }
+    if ($null -ne $manifest.PSObject.Properties['id'] -and -not [string]::IsNullOrWhiteSpace([string]$manifest.id) -and [string]$manifest.id -ne $folder.Name) {
+      Write-ProjectLog "插件 id（$($manifest.id)）与文件夹名（$($folder.Name)）不一致，按文件夹名处理。" 'WARN' $Root
+    }
+    $entryPath = Join-Path $folder.FullName ([string]$manifest.entry)
+    if (-not (Test-Path $entryPath -PathType Leaf)) {
+      Write-ProjectLog "插件入口不存在，已跳过：$($folder.Name)：$($manifest.entry)" 'ERROR' $Root
+      continue
+    }
+    $plugins.Add([pscustomobject]@{
+      Id = $folder.Name
+      Root = $folder.FullName
+      Manifest = $manifest
+      EntryPath = $entryPath
+      Enabled = Test-ProjectPluginEnabled -Id $folder.Name -Config $Config -Manifest $manifest
+    })
+  }
+  return $plugins.ToArray()
 }
 
 function Get-Articles {

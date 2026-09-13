@@ -20,11 +20,11 @@ ProjectMe 把文章正文、文章索引和维护工具放在同一个目录里�
 
 ### 管理核心（PowerShell CLI）
 
-`ProjectMe.ps1` 是交互式控制台，适合脚本化和完整的日常维护：文章列表、属性编辑、删除文章、Obsidian 导入、时间轴管理、本地预览、日志查看、项目自检和版本回滚。
+`ProjectMe.ps1` 是交互式控制台，适合脚本化和完整的日常维护：文章列表、属性编辑、删除文章、时间轴管理、本地预览、日志查看、项目自检和版本回滚。启用的插件会作为额外的菜单项追加在固定项之后。
 
 ### GUI 管理器（Windows WPF）
 
-`ProjectMe.Gui.ps1` 配合 `ProjectMe.Gui.xaml` 提供窗口化管理：文章搜索与排序、属性编辑、新建与删除、Obsidian 导入、时间轴编辑、本地预览、自检、日志和版本回滚。界面会跟随 Windows 的浅色/深色主题，并使用 `fonts/` 目录中的思源黑体。
+`ProjectMe.Gui.ps1` 配合 `ProjectMe.Gui.xaml` 提供窗口化管理：文章搜索与排序、属性编辑、新建与删除、时间轴编辑、本地预览、自检、日志和版本回滚。界面会跟随 Windows 的浅色/深色主题，并使用 `fonts/` 目录中的思源黑体。插件可以按自己的开关往界面上增加入口，未启用的插件不会出现在窗口里。
 
 ## 数据文件
 
@@ -73,10 +73,18 @@ ProjectMe 的全部状态都由这几个可读文件描述：
 
 脚本会创建 `articles/my-first-note.md` 并写入索引。之后直接编辑 Markdown 正文，标题、摘要、标签等目录属性交给 CLI 或 GUI 维护。
 
-如果已经有 Obsidian 文集，可以用 `Import-ObsidianCorpus.ps1` 按"阶段/卷/节.md"的结构批量导入，并用 `-WhatIf` 先预览结果：
+## 插件
+
+可选能力以插件形式放在 `plugins/` 目录，每个插件一个文件夹，插件主目录就是包含 `.ps1` 文件的那一层。开关写在 `projectme.config.json`：
+
+```json
+"plugins": { "obsidian-import": { "enabled": false } }
+```
+
+插件不存在、被禁用或初始化失败时，CLI 与 GUI 都不会显示它的入口。仓库自带一个**默认关闭**的 `obsidian-import` 插件：它按"阶段/卷/节.md"的结构把 Obsidian 库批量导入，并用 `-WhatIf` 先预览结果（脚本默认以自身目录为项目根，从其它位置调用时请传 `-ProjectRoot`）：
 
 ```powershell
-.\Import-ObsidianCorpus.ps1 -SourceRoot "D:\Notes\MyVault" -WhatIf
+.\plugins\obsidian-import\Import-ObsidianCorpus.ps1 -SourceRoot "D:\Notes\MyVault" -WhatIf
 ```
 
 ## 适合谁

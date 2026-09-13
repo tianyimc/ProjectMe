@@ -1,5 +1,12 @@
 # ProjectMe 更新日志
 
+## v1.1.7 - 2026-09-14
+- 新增插件机制：插件统一放在 `plugins/` 目录，每个插件一个文件夹，由 `projectme.config.json` 的 `plugins.<插件名>.enabled` 启用或关闭。
+- “从 Obsidian 导入”改为插件 `plugins/obsidian-import/`，导入逻辑与行为保持不变，默认关闭。
+- 插件不存在、被禁用或初始化失败时，CLI 菜单与 WPF GUI 都不再显示对应入口；插件加载失败只记录日志，不影响其它功能。
+- CLI 主菜单调整为 1–13 固定项加动态插件项；`Check-ProjectMe.ps1` 增加插件清单校验。
+- 版本号提升到 v1.1.7。
+
 ## v1.1.6 - 2026-09-11
 - CLI 与 WPF GUI 新增文章删除功能；删除会同步清理文章索引、Markdown 正文和时间轴条目，并通过二次确认避免误删。
 - WPF GUI 新增“默认 Obsidian 导入源”设置，可从“预览与维护 → Obsidian 导入”保存或清除。

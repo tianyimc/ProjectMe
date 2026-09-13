@@ -1,0 +1,19 @@
+{
+    "id": "obsidian-import",
+    "name": "从 Obsidian 导入",
+    "version": "1.0.0",
+    "description": "按“阶段/卷/节.md”结构把 Obsidian 库中的 Markdown 导入为文集文章。",
+    "defaultEnabled": false,
+    "entry": "ObsidianImport.Plugin.ps1",
+    "cli": {
+        "label": "从 Obsidian 导入",
+        "function": "Import-ObsidianInteractive"
+    },
+    "gui": {
+        "controls": [
+            "ImportObsidianButton",
+            "ObsidianImportPanel"
+        ],
+        "function": "Initialize-ObsidianImportGui"
+    }
+}
