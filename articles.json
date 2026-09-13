@@ -1,0 +1,33 @@
+[
+    {
+        "slug":  "about-projectme",
+        "title":  "ProjectMe 是什么",
+        "date":  "20260914",
+        "category":  "项目介绍",
+        "tags":  [
+                     "ProjectMe",
+                     "开源"
+                 ],
+        "readingTime":  "5 分钟阅读",
+        "excerpt":  "ProjectMe 是一个无后端依赖的文集项目：网页负责阅读，CLI 与 GUI 负责维护，全部数据都是可读的纯文本文件。",
+        "file":  "about-projectme.md",
+        "section":  "快速开始",
+        "order":  2
+    },
+    {
+        "slug":  "changelog",
+        "title":  "ProjectMe 更新日志",
+        "date":  "20260911",
+        "category":  "项目文档",
+        "tags":  [
+                     "ProjectMe",
+                     "更新日志"
+                 ],
+        "readingTime":  "6 分钟阅读",
+        "excerpt":  "ProjectMe 的完整版本更新历史。文章正文直接引用仓库根目录下的 CHANGELOG.md，不再复制一份内容。",
+        "file":  "CHANGELOG.md",
+        "path":  "CHANGELOG.md",
+        "section":  "参考",
+        "order":  1
+    }
+]

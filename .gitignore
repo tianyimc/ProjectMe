@@ -1,0 +1,4 @@
+.projectme-serve.json
+logs/
+old/
+.projectme-delete-*.tmp

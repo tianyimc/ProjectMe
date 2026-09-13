@@ -1,0 +1,21 @@
+{
+    "serve":  {
+                  "port":  4173,
+                  "mode":  "background"
+              },
+    "obsidian":  {
+                     "sourceRoot":  "",
+                     "preview":  true
+                 },
+    "articleList":  {
+                        "pageSize":  10,
+                        "groupBySection":  true
+                    },
+    "newArticle":  {
+                       "tags":  [
+                                    "随笔"
+                                ],
+                       "date":  "",
+                       "readingTime":  "3 分钟阅读"
+                   }
+}
