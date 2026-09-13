@@ -9,9 +9,10 @@ function Get-ProjectInfo {
   $path = Join-Path $Root 'project-info.json'
   if (-not (Test-Path $path -PathType Leaf)) {
     return [pscustomobject]@{
-      name = 'ProjectMe'; version = '1.0.0'; generation = 1; author = 'tianyimc.com'
-      copyright = "© $(Get-Date -Format yyyy) tianyimc.com"
-      description = '个人文集'; title = 'ProjectMe · 个人文集'
+      name = 'ProjectMe'; version = '1.0.0'; generation = 1; author = 'tianyimc.com'; authorUrl = 'https://tianyimc.com'
+      copyright = "© $(Get-Date -Format yyyy) tianyimc.com 依据 MIT 许可证开放源代码"
+      license = 'MIT'; licenseName = 'MIT 许可证'; licenseUrl = 'https://opensource.org/license/mit'
+      description = '一个无后端依赖的文集项目：网页负责阅读，CLI 与 WPF GUI 负责维护。'; title = 'ProjectMe · 个人文集'
     }
   }
   return Get-Content -Raw -Encoding UTF8 $path | ConvertFrom-Json

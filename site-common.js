@@ -120,7 +120,7 @@ function markdownToHtml(markdown) {
 }
 
 async function loadSiteData() {
-  const fallbackInfo = { name: 'ProjectMe', version: '1.1.6', generation: 1, author: 'tianyimc.com', copyright: '© 2026 tianyimc.com', title: 'ProjectMe · 个人文集' };
+  const fallbackInfo = { name: 'ProjectMe', version: '1.1.6', generation: 1, author: 'tianyimc.com', authorUrl: 'https://tianyimc.com', copyright: '© 2026 tianyimc.com 依据 MIT 许可证开放源代码', license: 'MIT', licenseName: 'MIT 许可证', licenseUrl: 'https://opensource.org/license/mit', description: '一个无后端依赖的文集项目：网页负责阅读，CLI 与 WPF GUI 负责维护。', title: 'ProjectMe · 个人文集' };
   const [articles, projectInfo] = await Promise.all([
     fetch('articles.json').then((response) => response.json()),
     fetch('project-info.json').then((response) => response.json()).catch(() => fallbackInfo)
@@ -128,12 +128,42 @@ async function loadSiteData() {
   return { articles, projectInfo: { ...fallbackInfo, ...projectInfo } };
 }
 
+function safeHttpUrl(value) {
+  const url = String(value ?? '').trim();
+  return /^https?:\/\//i.test(url) ? url : '';
+}
+
+function linkHtml(url, label) {
+  const target = safeHttpUrl(url);
+  const text = escapeHtml(label);
+  return target ? `<a href="${escapeHtml(target)}" target="_blank" rel="noopener noreferrer">${text}</a>` : text;
+}
+
+function authorLinkHtml(projectInfo, label = projectInfo?.author) {
+  return linkHtml(projectInfo?.authorUrl, label);
+}
+
+function copyrightHtml(projectInfo) {
+  const text = String(projectInfo?.copyright ?? '');
+  const author = String(projectInfo?.author ?? '').trim();
+  const url = safeHttpUrl(projectInfo?.authorUrl);
+  if (!author || !url || !text.includes(author)) return escapeHtml(text);
+  const escapedAuthor = escapeHtml(author);
+  return escapeHtml(text).split(escapedAuthor).join(`<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapedAuthor}</a>`);
+}
+
+function licenseLinkHtml(projectInfo) {
+  const name = String(projectInfo?.licenseName ?? projectInfo?.license ?? '').trim();
+  if (!name) return '';
+  return linkHtml(projectInfo?.licenseUrl, name);
+}
+
 function applySiteChrome(projectInfo) {
   document.title = projectInfo.title;
   const brand = document.querySelector('#footer-brand');
   const meta = document.querySelector('#footer-meta');
   if (brand) brand.textContent = projectInfo.name;
-  if (meta) meta.textContent = `${displayVersion(projectInfo)} · ${projectInfo.copyright}`;
+  if (meta) meta.innerHTML = `${escapeHtml(displayVersion(projectInfo))} · ${copyrightHtml(projectInfo)}`;
 }
 
 function displayVersion(projectInfo) {

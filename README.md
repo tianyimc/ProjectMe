@@ -2,9 +2,9 @@
 
 > 一个无后端依赖的个人文集：网页负责阅读，CLI 和 GUI 负责维护。
 
-当前版本：**v1.1.6** · 作者：`tianyimc.com`
+当前版本：**v1.1.6** · 作者：[tianyimc.com](https://tianyimc.com)
 
-仓库名称：**ProjectMe**（公开发布版，当前本地目录名为 `PubProjectMe`）
+仓库名称：**ProjectMe** · 许可证：**MIT**（详见 [`LICENSE`](LICENSE)）
 
 ## 这是什么
 
@@ -98,7 +98,8 @@ WPF GUI 的“预览与维护 → Obsidian 导入”可以设置默认导入源�
 | `ProjectMe.Common.ps1` | CLI、GUI 共用函数 |
 | `project-info.json` | 名称、版本、作者等项目元数据 |
 | `projectme.config.json` | 端口、文章列表和新文章默认配置 |
-| `old/` | 本地版本 ZIP 快照（已加入 `.gitignore`，公开仓库不包含此目录） |
+| `LICENSE` | MIT 许可证全文 |
+| `old/` | 本地版本 ZIP 快照（已在 `.gitignore` 中排除，仓库不包含此目录） |
 | `logs/` | CLI 和 GUI 共用日志目录 |
 
 ## 数据约定
@@ -118,7 +119,7 @@ WPF GUI 的“预览与维护 → Obsidian 导入”可以设置默认导入源�
 - `C`：普通更新，例如小功能、优化和修复。
 - `GenX`：同一普通版本的 Bug 修复快照。第一版不显示 `Gen1`，第二版开始显示 `Gen2`、`Gen3`。
 
-公开版本不提供"更新版本"功能：版本号与个人版保持一致，由维护者手动修改 `project-info.json` 并追加 `CHANGELOG.md` 条目。版本回滚仍然保留：CLI 的 **13. 回滚版本** 或 GUI 的"预览与维护 → 版本管理"会从 `old/` 中的快照恢复项目文件，回滚前自动在 `old/reseted/` 保存当前项目备份。
+本项目不提供"更新版本"功能：版本号由维护者手动修改 `project-info.json` 并追加 `CHANGELOG.md` 条目。版本回滚仍然保留：CLI 的 **13. 回滚版本** 或 GUI 的"预览与维护 → 版本管理"会从 `old/` 中的快照恢复项目文件，回滚前自动在 `old/reseted/` 保存当前项目备份。
 
 ## 配置
 
@@ -140,10 +141,18 @@ WPF GUI 的“预览与维护 → Obsidian 导入”可以设置默认导入源�
 
 ## 仓库
 
-- 仓库名称：`ProjectMe`，当前本地目录名为 `PubProjectMe`；已执行 `git init`，尚未配置远程地址，需要发布时再 `git remote add origin <仓库地址>`。
-- 公开发布版与个人版共用同一套版本号，当前为 `v1.1.6`，公开版不提供自动"更新版本"功能。
-- 仓库不包含个人文章存档：`articles.json` 与 `timeline.json` 中的个人条目已清空，示例文章只有"ProjectMe 是什么"和"ProjectMe 更新日志"两篇。
+- 仓库名称：`ProjectMe`；已执行 `git init`，尚未配置远程地址，需要发布时再 `git remote add origin <仓库地址>`。
+- 当前版本：`v1.1.6`；本项目不提供自动"更新版本"功能，版本号由维护者手动维护。
+- 示例文章只有"ProjectMe 是什么"和"ProjectMe 更新日志"两篇，后者直接引用根目录的 `CHANGELOG.md`。
 - `logs/`、`old/` 与 `.projectme-serve.json` 是本地运行产物，已在 `.gitignore` 中排除。
+
+## 作者与许可证
+
+ProjectMe 由 [tianyimc.com](https://tianyimc.com) 设计与维护。作者主页：<https://tianyimc.com>。
+
+本项目以 [MIT 许可证](https://opensource.org/license/mit) 开放源代码，完整文本见 [`LICENSE`](LICENSE)。你可以自由地使用、修改和分发本项目，只需保留版权声明。
+
+© 2026 [tianyimc.com](https://tianyimc.com) 依据 MIT 许可证开放源代码
 
 ## 更新日志
 

@@ -1,6 +1,6 @@
 const app = document.querySelector('#app');
 let articles = [];
-let projectInfo = { name: 'ProjectMe', version: '1.1.6', generation: 1, author: 'tianyimc.com', copyright: '© 2026 tianyimc.com', title: 'ProjectMe · 个人文集' };
+let projectInfo = { name: 'ProjectMe', version: '1.1.6', generation: 1, author: 'tianyimc.com', authorUrl: 'https://tianyimc.com', copyright: '© 2026 tianyimc.com 依据 MIT 许可证开放源代码', license: 'MIT', licenseName: 'MIT 许可证', licenseUrl: 'https://opensource.org/license/mit', description: '一个无后端依赖的文集项目：网页负责阅读，CLI 与 WPF GUI 负责维护。', title: 'ProjectMe · 个人文集' };
 
 function renderHome() {
   const orderedArticles = [...articles].sort((a, b) => (b.order ?? -1) - (a.order ?? -1));
@@ -41,12 +41,35 @@ function renderHome() {
   searchInput.addEventListener('input', () => renderList(tagFilter.value, searchInput.value, true));
 }
 
+function renderAbout() {
+  const description = projectInfo.description || 'ProjectMe 是一个无后端依赖的文集项目。';
+  app.innerHTML = `<section class="about-page">
+    <p class="eyebrow">About ${escapeHtml(projectInfo.name)}</p>
+    <h1>关于 ProjectMe</h1>
+    <p class="about-lead">${escapeHtml(description)}</p>
+    <h2>项目是什么</h2>
+    <p>ProjectMe 把文章正文、文章索引和维护工具放在同一个目录里：网页负责阅读，命令行与图形界面负责维护。它不依赖数据库、构建工具或第三方运行库，克隆下来就能直接使用。</p>
+    <ul class="about-list">
+      <li><strong>文集核心</strong>：基于原生 HTML、CSS 与 JavaScript 实现，没有后端依赖，也不需要构建步骤，任何静态托管都能直接发布。</li>
+      <li><strong>命令行管理器</strong>：基于 PowerShell，负责文章索引、Obsidian 导入、时间轴、本地预览、项目自检和版本回滚。</li>
+      <li><strong>GUI 管理器</strong>：基于 WPF + PowerShell 的 Windows 工作台，把同样的维护能力做成可搜索、可编辑的窗口界面。</li>
+      <li><strong>数据</strong>：正文是 Markdown，索引是 JSON，全部是可读的纯文本，便于长期保存、迁移和版本管理。</li>
+    </ul>
+    <h2>关于作者</h2>
+    <p>ProjectMe 由 ${authorLinkHtml(projectInfo)} 设计与维护。项目的出发点是：写作的产物应该以最简单、最容易被长期保存的形式存在，工具负责把它们整理好，而不是把它们锁进某个平台。</p>
+    <p>如果你在使用中遇到问题，或者想了解作者的更多内容，欢迎访问 ${authorLinkHtml(projectInfo, '作者主页')}。</p>
+    <h2>许可证与版权</h2>
+    <p>ProjectMe 以 ${licenseLinkHtml(projectInfo)} 开放源代码，你可以自由地使用、修改和分发本项目，只需保留版权声明。</p>
+    <p class="project-meta">版本 ${escapeHtml(displayVersion(projectInfo))}<br>作者 ${authorLinkHtml(projectInfo)}<br>${copyrightHtml(projectInfo)}<br>许可证：${licenseLinkHtml(projectInfo)}</p>
+  </section>`;
+}
+
 async function route() {
   const [path, rawSlug] = location.hash.slice(2).split('/');
   const slug = rawSlug ? decodeURIComponent(rawSlug) : '';
   try {
     if (path === 'article' && slug) await renderArticleInto(app, articles, slug);
-    else if (path === 'about') app.innerHTML = `<section class="about-page"><p class="eyebrow">About ${escapeHtml(projectInfo.name)}</p><h1>关于这里</h1><p>${escapeHtml(projectInfo.description || 'ProjectMe 是一份持续更新的个人文集。')}</p><p class="project-meta">版本 ${escapeHtml(displayVersion(projectInfo))} · 作者 ${escapeHtml(projectInfo.author)}<br>${escapeHtml(projectInfo.copyright)}</p></section>`;
+    else if (path === 'about') renderAbout();
     else renderHome();
   } catch (error) {
     app.innerHTML = '<p class="empty">这篇文章暂时无法打开，请检查 Markdown 文件和文章索引。</p>';

@@ -87,8 +87,16 @@ ProjectMe 的全部状态都由这几个可读文件描述：
 
 ## 关于这个仓库
 
-这个仓库是 ProjectMe 的公开版本，仓库名称为 `ProjectMe`（当前本地目录名为 `PubProjectMe`）。它保留了完整的工具链，但不包含任何个人文章存档：`articles.json` 与 `timeline.json` 中的个人条目已全部清空，示例文章只有本介绍和更新日志两篇。
+仓库名称为 `ProjectMe`。正文的示例文章只有本介绍和"ProjectMe 更新日志"两篇，后者直接引用仓库根目录的 [`CHANGELOG.md`](CHANGELOG.md)，因此更新日志始终只有一份。
 
-版本号与个人版保持一致，公开版不提供自动"更新版本"能力——版本升级由维护者手动完成，避免工具在读者机器上改写项目快照。
+本项目不提供自动"更新版本"能力：版本号由维护者手动维护，避免工具在读者机器上生成项目快照；版本回滚仍然保留。
+
+## 作者与许可证
+
+ProjectMe 由 [tianyimc.com](https://tianyimc.com) 设计与维护。作者主页：`https://tianyimc.com`。
+
+本项目以 [MIT 许可证](https://opensource.org/license/mit) 开放源代码，完整文本见仓库根目录的 `LICENSE`。你可以自由地使用、修改和分发本项目，只需保留版权声明。
+
+© 2026 [tianyimc.com](https://tianyimc.com) 依据 MIT 许可证开放源代码
 
 完整版本历史见"ProjectMe 更新日志"一文，或直接查看仓库根目录的 [`CHANGELOG.md`](CHANGELOG.md)。

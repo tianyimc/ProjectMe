@@ -87,7 +87,7 @@
       <DockPanel>
         <StackPanel DockPanel.Dock="Bottom">
           <TextBlock x:Name="SidebarVersionText" Foreground="{DynamicResource SidebarMuted}" Margin="8,18,8,2" TextWrapping="Wrap"/>
-          <TextBlock Text="tianyimc.com" Foreground="{DynamicResource SidebarMuted}" Margin="8,0,8,0"/>
+          <TextBlock Margin="8,0,8,0"><Hyperlink x:Name="AuthorLink" NavigateUri="https://tianyimc.com" Foreground="{DynamicResource SidebarMuted}" TextDecorations="None">tianyimc.com</Hyperlink></TextBlock>
         </StackPanel>
         <StackPanel>
           <TextBlock Text="ProjectMe" Style="{StaticResource TitleTextStyle}" Foreground="White" FontSize="24" Margin="8,0,8,2"/>
