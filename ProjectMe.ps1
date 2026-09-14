@@ -9,7 +9,6 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Write-ProjectLog 'CLI 启动'
 $config = Get-ProjectConfig -Root $root
 if ($SafeMode) {
-  foreach ($key in @($config.plugins.Keys)) { $config.plugins[$key] = [pscustomobject]@{ enabled = $false } }
   Write-Host '安全模式：本次运行不加载任何插件。' -ForegroundColor Yellow
   Write-ProjectLog '安全模式：本次运行已忽略全部插件' 'INFO' $root
 }
@@ -96,7 +95,7 @@ function Remove-ArticleInteractive {
   Write-Host "标题：$($selected.title)"
   $selectedSource = if ($selected.PSObject.Properties.Name -contains 'path' -and -not [string]::IsNullOrWhiteSpace([string]$selected.path)) { [string]$selected.path } else { "articles\$($selected.file)" }
   Write-Host "文件：$selectedSource"
-  Write-Host '此操作会同时移除文章索引、Markdown 正文和时间轴中的对应条目；Obsidian 源文件不会被删除，下次导入仍可能重新创建此文章。'
+  Write-Host '此操作会同时移除文章索引、Markdown 正文和时间轴中的对应条目；由插件导入的源文件不会被删除，下次导入仍可能重新创建此文章。'
   Write-Host "请输入文件名（含 .md）确认删除：$($selected.file)" -ForegroundColor Yellow
   $confirmFile = Read-Host '确认删除文件名'
   if ($confirmFile -ne $selected.file) {
@@ -193,8 +192,8 @@ function Rollback-Version {
     throw
   }
 }
-function Build-MainMenu([object]$Config) {
-  $pluginItems = @(Get-ProjectPlugins -Root $root -Config $Config | Where-Object { $_.Enabled -and $null -ne $_.Manifest.PSObject.Properties['cli'] -and $null -ne $_.Manifest.cli })
+function Build-MainMenu([object]$Config, [switch]$SafeMode) {
+  $pluginItems = @(Get-ProjectPlugins -Root $root -SafeMode:$SafeMode | Where-Object { $_.Enabled -and $null -ne $_.Manifest.PSObject.Properties['cli'] -and $null -ne $_.Manifest.cli })
   $items = @(
     [pscustomobject]@{ Number = 1; Label = '文章列表'; Kind = 'builtin'; Action = 'list' }
     [pscustomobject]@{ Number = 2; Label = '编辑文章属性'; Kind = 'builtin'; Action = 'edit' }
@@ -217,11 +216,11 @@ function Build-MainMenu([object]$Config) {
   foreach ($pluginItem in $pluginItems) { Write-ProjectLog "已启用插件：$($pluginItem.Id)（CLI 菜单 $($items | Where-Object { $_.Plugin -eq $pluginItem } | Select-Object -First 1 | ForEach-Object { $_.Number })）" }
   return [pscustomobject]@{ Items = $items; Text = (@($items | ForEach-Object { "$($_.Number). $($_.Label)" }) + '0. 退出') -join "`n" }
 }
-$menu = Build-MainMenu -Config $config
+$menu = Build-MainMenu -Config $config -SafeMode:$SafeMode
 $menuDirty = $false
 
 while ($true) {
-  if ($menuDirty) { $config = Get-ProjectConfig -Root $root; $menu = Build-MainMenu -Config $config; $menuDirty = $false }
+  if ($menuDirty) { $config = Get-ProjectConfig -Root $root; $menu = Build-MainMenu -Config $config -SafeMode:$SafeMode; $menuDirty = $false }
   $info = Get-ProjectInfo
   Clear-Menu
   Write-Host "$(Get-DisplayVersion $info)" -ForegroundColor Cyan

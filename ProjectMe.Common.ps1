@@ -40,11 +40,9 @@ function Write-ProjectLog {
 function Get-DefaultProjectConfig {
   return [pscustomobject]@{
     serve = [pscustomobject]@{ port = 4173; mode = 'background' }
-    obsidian = [pscustomobject]@{ sourceRoot = ''; preview = $true }
     articleList = [pscustomobject]@{ pageSize = 10; groupBySection = $true }
     newArticle = [pscustomobject]@{ tags = @('随笔'); date = ''; readingTime = '3 分钟阅读' }
     update = [pscustomobject]@{ keep = @() }
-    plugins = @{}
   }
 }
 
@@ -57,8 +55,6 @@ function Get-ProjectConfig {
     $raw = Get-Content -Raw -Encoding UTF8 $path | ConvertFrom-Json
     if ($raw.serve.port -as [int] -and [int]$raw.serve.port -gt 0) { $defaults.serve.port = [int]$raw.serve.port } else { Write-ProjectLog '配置 serve.port 无效，使用 4173。' 'WARN' $Root }
     if ($raw.serve.mode -in @('background','foreground')) { $defaults.serve.mode = [string]$raw.serve.mode } else { Write-ProjectLog '配置 serve.mode 无效，使用 background。' 'WARN' $Root }
-    if ($null -ne $raw.obsidian.sourceRoot) { $defaults.obsidian.sourceRoot = [string]$raw.obsidian.sourceRoot }
-    if ($null -ne $raw.obsidian.preview) { $defaults.obsidian.preview = [bool]$raw.obsidian.preview }
     if ($raw.articleList.pageSize -as [int] -and [int]$raw.articleList.pageSize -gt 0) { $defaults.articleList.pageSize = [int]$raw.articleList.pageSize } else { Write-ProjectLog '配置 articleList.pageSize 无效，使用 10。' 'WARN' $Root }
     if ($null -ne $raw.articleList.groupBySection) { $defaults.articleList.groupBySection = [bool]$raw.articleList.groupBySection }
     if ($null -ne $raw.newArticle.tags) { $defaults.newArticle.tags = @($raw.newArticle.tags | ForEach-Object { [string]$_ } | Where-Object { $_ }) }
@@ -72,19 +68,8 @@ function Get-ProjectConfig {
     } catch {
       Write-ProjectLog "update.keep 读取失败，按空列表处理：$($_.Exception.Message)" 'WARN' $Root
     }
-    try {
-      if ($null -ne $raw.plugins) {
-        foreach ($property in @($raw.plugins.PSObject.Properties)) {
-          $value = $property.Value
-          $enabled = $false
-          if ($value -is [bool]) { $enabled = [bool]$value }
-          elseif ($null -ne $value -and $null -ne $value.PSObject.Properties['enabled']) { $enabled = [bool]$value.enabled }
-          else { Write-ProjectLog "插件开关格式无效，按关闭处理：$($property.Name)" 'WARN' $Root }
-          $defaults.plugins[$property.Name] = @{ enabled = $enabled }
-        }
-      }
-    } catch {
-      Write-ProjectLog "插件开关读取失败，全部按默认处理：$($_.Exception.Message)" 'WARN' $Root
+    if ($null -ne $raw.PSObject.Properties['plugins']) {
+      Write-ProjectLog 'projectme.config.json 中残留了旧版 plugins 配置段，已忽略；插件配置现在位于 plugins\<插件名>\config.json。' 'WARN' $Root
     }
     Write-ProjectLog "已读取配置文件：$path" 'INFO' $Root
   } catch {
@@ -105,10 +90,39 @@ function Write-ProjectJsonAtomic {
   }
 }
 
+# 插件配置规范：每个插件的配置放在它自己的主目录下 —— plugins\<插件名>\config.json。
+# 该文件由插件自带（可选的默认值），宿主只维护其中的保留键 enabled；
+# 其余键完全属于插件。主程序配置 projectme.config.json 不再保存任何插件数据。
+
+function Get-ProjectPluginConfigPath {
+  param([Parameter(Mandatory)][string]$Id, [string]$Root = (Get-ProjectRoot))
+  return Join-Path (Join-Path $Root 'plugins') (Join-Path $Id 'config.json')
+}
+
+function Get-ProjectPluginConfig {
+  param([Parameter(Mandatory)][string]$Id, [string]$Root = (Get-ProjectRoot))
+  $path = Get-ProjectPluginConfigPath -Id $Id -Root $Root
+  if (-not (Test-Path $path -PathType Leaf)) { return $null }
+  try {
+    return Get-Content -Raw -Encoding UTF8 $path | ConvertFrom-Json
+  } catch {
+    Write-ProjectLog "插件配置无法解析（$Id）：$($_.Exception.Message)" 'WARN' $Root
+    return $null
+  }
+}
+
+function Save-ProjectPluginConfig {
+  param([Parameter(Mandatory)][string]$Id, [Parameter(Mandatory)]$Config, [string]$Root = (Get-ProjectRoot))
+  $directory = Split-Path -Parent (Get-ProjectPluginConfigPath -Id $Id -Root $Root)
+  if (-not (Test-Path $directory -PathType Container)) { throw "插件目录不存在：$Id" }
+  Write-ProjectJsonAtomic -Value $Config -Path (Get-ProjectPluginConfigPath -Id $Id -Root $Root) -Depth 12
+}
+
 function Test-ProjectPluginEnabled {
-  param([Parameter(Mandatory)][string]$Id, $Config = $null, $Manifest = $null)
-  if ($null -ne $Config -and $Config.plugins -is [hashtable] -and $Config.plugins.ContainsKey($Id)) {
-    return [bool]$Config.plugins[$Id].enabled
+  param([Parameter(Mandatory)][string]$Id, [string]$Root = (Get-ProjectRoot), $Manifest = $null)
+  $config = Get-ProjectPluginConfig -Id $Id -Root $Root
+  if ($null -ne $config -and $null -ne $config.PSObject.Properties['enabled']) {
+    return [bool]$config.enabled
   }
   if ($null -ne $Manifest -and $null -ne $Manifest.PSObject.Properties['defaultEnabled'] -and $null -ne $Manifest.defaultEnabled) {
     return [bool]$Manifest.defaultEnabled
@@ -132,7 +146,7 @@ function Test-ProjectPluginManifest {
 }
 
 function Get-ProjectPlugins {
-  param([string]$Root = (Get-ProjectRoot), $Config = $null)
+  param([string]$Root = (Get-ProjectRoot), [switch]$SafeMode)
   $directory = Join-Path $Root 'plugins'
   if (-not (Test-Path $directory -PathType Container)) { return @() }
   $plugins = New-Object System.Collections.Generic.List[object]
@@ -168,8 +182,12 @@ function Get-ProjectPlugins {
         }
       }
     }
+    $configPath = Get-ProjectPluginConfigPath -Id $folder.Name -Root $Root
+    $pluginConfig = $null
     if ($status -eq 'ok') {
-      $enabled = Test-ProjectPluginEnabled -Id $folder.Name -Config $Config -Manifest $manifest
+      $pluginConfig = Get-ProjectPluginConfig -Id $folder.Name -Root $Root
+      $enabled = Test-ProjectPluginEnabled -Id $folder.Name -Root $Root -Manifest $manifest
+      if ($SafeMode) { $enabled = $false }
     } else {
       $enabled = $false
       Write-ProjectLog "插件 $($folder.Name) 状态异常（$status）：$problem" 'WARN' $Root
@@ -179,6 +197,8 @@ function Get-ProjectPlugins {
       Root = $folder.FullName
       Manifest = $manifest
       EntryPath = $entryPath
+      ConfigPath = $configPath
+      Config = $pluginConfig
       Enabled = $enabled
       Status = $status
       Problem = $problem
@@ -189,37 +209,13 @@ function Get-ProjectPlugins {
 
 function Set-ProjectPluginEnabled {
   param([Parameter(Mandatory)][string]$Id, [Parameter(Mandatory)][bool]$Enabled, [string]$Root = (Get-ProjectRoot))
-  $path = Join-Path $Root 'projectme.config.json'
-  $config = if (Test-Path $path -PathType Leaf) { Get-Content -Raw -Encoding UTF8 $path | ConvertFrom-Json } else { Get-DefaultProjectConfig }
-  if ($null -eq $config.PSObject.Properties['plugins'] -or $config.plugins -is [hashtable]) {
-    $existing = [ordered]@{}
-    if ($config.plugins -is [hashtable]) {
-      foreach ($key in @($config.plugins.Keys)) { $existing[$key] = [bool]$config.plugins[$key].enabled }
-    }
-    $pluginsObject = [pscustomobject]@{}
-    foreach ($key in $existing.Keys) { $pluginsObject | Add-Member -NotePropertyName $key -NotePropertyValue ([pscustomobject]@{ enabled = $existing[$key] }) -Force }
-    $config | Add-Member -NotePropertyName plugins -NotePropertyValue $pluginsObject -Force
+  $config = Get-ProjectPluginConfig -Id $Id -Root $Root
+  if ($null -eq $config) { $config = [pscustomobject]@{} }
+  if ($null -eq $config.PSObject.Properties['enabled']) {
+    $config | Add-Member -NotePropertyName enabled -NotePropertyValue $false -Force
   }
-  if ($null -eq $config.plugins.PSObject.Properties[$Id]) {
-    $config.plugins | Add-Member -NotePropertyName $Id -NotePropertyValue ([pscustomobject]@{ enabled = $false }) -Force
-  }
-  if ($null -eq $config.plugins.$Id.PSObject.Properties['enabled']) {
-    $config.plugins.$Id | Add-Member -NotePropertyName enabled -NotePropertyValue $false -Force
-  }
-  $config.plugins.$Id.enabled = [bool]$Enabled
-  Write-ProjectJsonAtomic -Value $config -Path $path -Depth 12
-}
-
-function Remove-ProjectPluginSetting {
-  param([Parameter(Mandatory)][string]$Id, [string]$Root = (Get-ProjectRoot))
-  $path = Join-Path $Root 'projectme.config.json'
-  if (-not (Test-Path $path -PathType Leaf)) { return $false }
-  $config = Get-Content -Raw -Encoding UTF8 $path | ConvertFrom-Json
-  if ($null -eq $config.PSObject.Properties['plugins'] -or $config.plugins -is [hashtable]) { return $false }
-  if ($null -eq $config.plugins.PSObject.Properties[$Id]) { return $false }
-  $config.plugins.PSObject.Properties.Remove($Id) | Out-Null
-  Write-ProjectJsonAtomic -Value $config -Path $path -Depth 12
-  return $true
+  $config.enabled = [bool]$Enabled
+  Save-ProjectPluginConfig -Id $Id -Config $config -Root $Root
 }
 
 function Test-ProjectSafeZipEntry {

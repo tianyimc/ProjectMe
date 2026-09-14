@@ -1,5 +1,14 @@
 # ProjectMe 更新日志
 
+## v1.1.10 - 2026-09-14
+- **本版本不随包提供任何插件**：“从 Obsidian 导入”插件尚未完善（格式兼容与文章拆分规则尚未定型），故暂不提供；仓库中不再包含它的任何内容（插件本体、GUI 控件与相关配置一并移除）。
+- 插件配置改由插件自己提供：统一放在 `plugins\<插件名>\config.json`，主程序配置 `projectme.config.json` 不再保存任何插件数据（`plugins.*` 与 `obsidian.*` 段一并移除）。
+- 插件开关 `enabled` 归入插件自己的 `config.json`；安装后默认禁用（包内自带 `config.json` 时使用其默认值，缺失时自动按规范生成）。
+- 插件管理器：升级安装时保留本地已有的 `config.json`；卸载时配置随插件目录一起移入 `old\removed-plugins\`；`-List` / 详情显示插件配置路径。
+- 无损更新器把 `plugins\<插件名>\config.json` 纳入用户数据保护，永不覆盖、永不删除。
+- `Check-ProjectMe.ps1` 新增插件 `config.json` 的 JSON 校验。
+- 版本号提升到 v1.1.10。
+
 ## v1.1.9 - 2026-09-14
 - 新增插件管理器 `Manage-Plugins.ps1`：启动即扫描 `plugins\`，文件夹显示为“已安装插件”、zip 显示为“发现的未安装插件”。
 - 支持安装（解压并校验包内结构）、启用、禁用、卸载插件，全部通过脚本完成，无需手改 `projectme.config.json`。

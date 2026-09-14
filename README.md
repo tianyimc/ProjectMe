@@ -2,7 +2,7 @@
 
 > 一个无后端依赖的个人文集：网页负责阅读，CLI 和 GUI 负责维护。
 
-当前版本：**v1.1.9** · 作者：[tianyimc.com](https://tianyimc.com)
+当前版本：**v1.1.10** · 作者：[tianyimc.com](https://tianyimc.com)
 
 仓库名称：**ProjectMe** · 许可证：**MIT**（详见 [`LICENSE`](LICENSE)）
 
@@ -11,7 +11,7 @@
 ProjectMe 将文章正文、文章索引和管理工具放在同一个项目目录中：
 
 - **文集核心**：原生 HTML、CSS、JavaScript 和 Markdown，适合静态托管。
-- **管理核心**：PowerShell CLI，适合批量维护、导入和版本回滚。
+- **管理核心**：PowerShell CLI，适合批量维护、项目自检和版本回滚。
 - **GUI 管理器**：Windows WPF 工作台，支持浅色/深色系统主题，适合日常搜索、编辑和本地预览。
 - **数据文件**：`articles.json` 管理文章属性，`articles/` 保存正文，`timeline.json` 管理时间轴。
 
@@ -60,25 +60,13 @@ CLI 适合脚本化和完整维护，包含文章列表、属性编辑、删除�
 
 ### 删除文章
 
-CLI 选择 **3. 删除文章**，或在 WPF GUI 的文章属性区点击“删除文章”。删除会同时移除文章索引、Markdown 正文和对应的时间轴条目；不会修改 Obsidian 源文件。CLI 需要输入包含 `.md` 的完整文件名确认，GUI 需要勾选“确认删除”。为避免项目索引为空，最后一篇文章不能删除。
+CLI 选择 **3. 删除文章**，或在 WPF GUI 的文章属性区点击“删除文章”。删除文章不会修改插件导入源里的文件。CLI 需要输入包含 `.md` 的完整文件名确认，GUI 需要勾选“确认删除”。为避免项目索引为空，最后一篇文章不能删除。
 
-### 导入 Obsidian（插件）
+### 导入 Obsidian（暂不提供）
 
-“从 Obsidian 导入”是一个**默认关闭**的插件，位于 `plugins/obsidian-import/`。启用后它才会出现在 CLI 菜单（追加为末尾的插件项）与 GUI 中：
+ProjectMe 支持插件，但**本版本不随包提供任何插件**。“从 Obsidian 导入”插件仍在完善中（格式兼容性与拆分规则尚未定型），因此暂不提供，仓库里也不包含它的任何内容。
 
-```json
-"plugins": { "obsidian-import": { "enabled": true } }
-```
-
-导入器递归读取“阶段/卷/节.md”，按 `##` 标题拆分文章，同时保留阶段级和节级前言。首次运行建议预览：
-
-```powershell
-.\plugins\obsidian-import\Import-ObsidianCorpus.ps1 -SourceRoot "D:\Notes\MyVault" -WhatIf
-```
-
-确认结果后去掉 `-WhatIf` 执行正式导入。脚本默认以自身所在目录为项目根，因此从其它位置调用时要显式传入 `-ProjectRoot`。导入不会修改 Obsidian 源目录；重复执行会保留已修改的文章属性，并仅在来源正文发生变化时同步对应 Markdown 正文。
-
-WPF GUI 的“预览与维护 → Obsidian 导入”可以设置默认导入源（写入 `obsidian.sourceRoot`）。设置后，点击“从 Obsidian 导入”时目录选择窗口会默认定位到该目录；在导入流程中临时选择其他目录只影响本次导入。
+插件机制本身是可用的：把插件包放进 `plugins\` 并用插件管理器安装即可（见下文「插件」）。
 
 ### 运行自检
 
@@ -103,7 +91,7 @@ WPF GUI 的“预览与维护 → Obsidian 导入”可以设置默认导入源�
 | `ProjectMe.Gui.WinForms.ps1` | 旧版隐藏回退 GUI |
 | `ProjectMe.Common.ps1` | CLI、GUI 共用函数与插件宿主 API |
 | `Update-ProjectMe.ps1` | 无损更新器：把新版本包体应用到当前安装 |
-| `plugins/` | 插件目录，每个插件一个文件夹（默认关闭的 `obsidian-import` 在其中）；`plugins\*.zip` 是待安装插件包 |
+| `plugins/` | 插件目录（安装插件时自动创建），每个插件一个文件夹，配置在插件自己的 `config.json` 里；`plugins\*.zip` 是待安装插件包 |
 | `Manage-Plugins.ps1` | 插件管理器：安装 / 启用 / 禁用 / 卸载插件，支持安全模式 |
 | `project-info.json` | 名称、版本、作者等项目元数据 |
 | `projectme.config.json` | 端口、文章列表和新文章默认配置 |
@@ -136,9 +124,6 @@ WPF GUI 的“预览与维护 → Obsidian 导入”可以设置默认导入源�
 
 - `serve.port`：本地预览端口，默认 `4173`；
 - `serve.mode`：CLI 默认使用 `background` 或 `foreground`；
-- `plugins.<插件名>.enabled`：插件开关，见下文「插件」；
-- `obsidian.sourceRoot` 与 `obsidian.preview`：`obsidian-import` 插件的导入默认目录和是否先预览（插件未启用时不生效）；
-- GUI 的“预览与维护 → Obsidian 导入”可以直接保存或清除 `obsidian.sourceRoot`。
 - `articleList.pageSize` 与 `articleList.groupBySection`：CLI 列表行为；
 - 网页文集主页固定按 20 篇一页展示，筛选后同样分页。
 - `newArticle`：新文章默认标签、日期和阅读时间。
@@ -146,29 +131,39 @@ WPF GUI 的“预览与维护 → Obsidian 导入”可以设置默认导入源�
 
 配置错误时会写入日志，并回退到内置默认值。
 
+> 该文件只保存主程序设置；插件设置一律放在插件自己的 `plugins\<插件名>\config.json` 里。
+
 ## 插件
 
 插件放在项目目录的 `plugins/` 下，每个插件一个文件夹；插件主目录就是包含 `.ps1` 文件的那一层：
 
 ```text
 plugins/
-  obsidian-import/
-    plugin.json                  # 插件清单
-    ObsidianImport.Plugin.ps1    # 插件入口
-    Import-ObsidianCorpus.ps1    # 该插件自己的脚本
+  <插件名>/
+    plugin.json       # 插件清单
+    config.json       # 插件配置（可带默认值，见下）
+    <入口>.ps1        # 插件入口
 ```
 
-启用或关闭：
+本版本**不自带任何插件**（`plugins\` 目录会在安装插件时自动创建）。
+
+启用或关闭：开关就在插件自己的 `config.json` 里，主程序配置不再保存任何插件数据。
 
 ```json
-"plugins": {
-    "obsidian-import": { "enabled": false }
-}
+{ "enabled": false }
 ```
 
-- 键名是插件文件夹名；没有配置项时使用清单里的 `defaultEnabled`（缺省 `false`）。
 - 插件不存在、被禁用或初始化失败时，CLI 菜单与 GUI 都不显示它的入口，其它功能不受影响（失败只写日志）。
-- 配置改动后需要重启 CLI 或 GUI 才会生效（CLI 从插件管理器返回时会自动刷新菜单）。
+- 开关改动后需要重启 CLI 或 GUI 才会生效（CLI 从插件管理器返回时会自动刷新菜单）。
+
+### 插件配置文件 `config.json`
+
+插件配置放在**插件自己的主目录**里（`plugins\<插件名>\config.json`），`projectme.config.json` 只保存主程序设置。
+
+- 文件可由插件包自带（提供默认值），也可以不存在；缺失时按清单的 `defaultEnabled`（缺省 `false`）判定启用状态。
+- 保留键 `enabled`（布尔）由宿主维护，代表插件开关；**其余键完全归插件所有**，宿主机不去解析它们。
+- 它是**用户数据**：更新器永不覆盖，插件管理器在升级时保留本地已存在的那一份，卸载时随插件目录一起移入 `old\removed-plugins\`。
+- 启用状态优先级：`config.json` 的 `enabled` → 清单的 `defaultEnabled` → `false`。
 
 ### 插件管理器
 
@@ -188,10 +183,10 @@ plugins/
 扫描规则与行为：
 
 - `plugins\` 下的**文件夹 = 已安装插件**（显示名称、版本、启用状态、是否损坏）；`plugins\*.zip = 发现的未安装插件`（会只读探测包内 `plugin.json`，标注将安装成什么名字，以及是否与已安装插件同名）。
-- **安装**：校验包内路径安全（拒绝 `..`、绝对路径、非法设备名）、必须恰好有一个含 `plugin.json` 的插件主目录、清单与入口必须有效；装好后**默认禁用**。同名插件已存在时按“升级/重装”处理：显示新旧版本、确认后把旧目录移入 `old\removed-plugins\` 并**保留原有启用状态**。
-- **启用 / 禁用**：只写 `projectme.config.json` 的 `plugins.<id>.enabled`，不动文件；状态损坏的插件会拒绝启用并说明原因。
-- **卸载**：需要输入插件名确认，随后删除该插件开关并把目录移入 `old\removed-plugins\<id>-<时间戳>\`（可用 `-Purge` 直接删除）。插件自己的设置项（例如 `obsidian.*`）不会被清理。
-- **安全模式**：`ProjectMe.ps1 -SafeMode` / `ProjectMe.Gui.ps1 -SafeMode` 让**本次运行**忽略全部插件，`projectme.config.json` 不会被改写；管理器的「以安全模式启动」就是替你带上这个开关。需要持久关闭时用「全部禁用」。
+- **安装**：校验包内路径安全（拒绝 `..`、绝对路径、非法设备名）、必须恰好有一个含 `plugin.json` 的插件主目录、清单与入口必须有效；装好后**默认禁用**（若包内自带 `config.json` 则以其默认值为准，缺失时自动生成）。同名插件已存在时按“升级/重装”处理：显示新旧版本、确认后把旧目录移入 `old\removed-plugins\`，并**保留本地已有的 `config.json`**（开关与插件设置都不丢）。
+- **启用 / 禁用**：只改插件自己的 `plugins\<id>\config.json` 的 `enabled`，主程序配置与其它文件都不动；状态损坏的插件会拒绝启用并说明原因。
+- **卸载**：需要输入插件名确认，随后把插件目录（含它自己的 `config.json`）移入 `old\removed-plugins\<id>-<时间戳>\`（可用 `-Purge` 直接删除）。
+- **安全模式**：`ProjectMe.ps1 -SafeMode` / `ProjectMe.Gui.ps1 -SafeMode` 让**本次运行**忽略全部插件，任何配置文件都不会被改写；管理器的「以安全模式启动」就是替你带上这个开关。需要持久关闭时用「全部禁用」。
 
 ### 插件清单 `plugin.json`
 
@@ -221,12 +216,12 @@ GUI 插件需要先在 `ProjectMe.Gui.xaml` 里预置自己要用的控件，并
 下载新版本的完整包体（zip，或已解压的目录）后，在旧版安装目录运行一次更新器即可，**不需要手动解压覆盖，也不会碰你的文章**：
 
 ```powershell
-.\Update-ProjectMe.ps1 -Package .\ProjectMe-v1.1.9.zip
+.\Update-ProjectMe.ps1 -Package .\ProjectMe-v1.1.10.zip
 ```
 
 更新器会先打印计划（新增 / 更新 / 跳过各多少、具体是哪些文件），确认后才开始写入：
 
-- **永不写入、永不删除的用户数据**：`articles/`、`articles.json`、`timeline.json`、`projectme.config.json`、`.gitignore`、`logs/`、`old/`、`.git/`。即使包体里带了同名文件也会跳过。
+- **永不写入、永不删除的用户数据**：`articles/`、`articles.json`、`timeline.json`、`projectme.config.json`、`.gitignore`、`logs/`、`old/`、`.git/`，以及各插件自己的 `plugins\<插件名>\config.json`。即使包体里带了同名文件也会跳过。
 - **`project-info.json` 采用合并**：版本号取自包体，你本地自定义的 `title`、`author`、`copyright` 等保持不变。
 - **本地改过的程序文件**（例如 `styles.css`、`index.html`）：会被逐个询问「保留本地版本 / 用包体覆盖」，可随时改主意（`A` 之后全部覆盖、`L` 之后全部保留、`Q` 取消）；选择「保留」的还可以写入 `update.keep` 记住，下次不再询问。
 - **更新前自动备份**到 `old/v<旧版本>-<日期>-preupdate.zip`（不含 `.git/`）；写入过程中任何失败都会按文件精确回滚。
@@ -254,7 +249,7 @@ GUI 插件需要先在 `ProjectMe.Gui.xaml` 里预置自己要用的控件，并
 ## 仓库
 
 - 仓库名称：`ProjectMe`；已执行 `git init`，尚未配置远程地址，需要发布时再 `git remote add origin <仓库地址>`。
-- 当前版本：`v1.1.9`；本项目不提供自动"更新版本"功能，版本号由维护者手动维护，用户侧用 `Update-ProjectMe.ps1` 应用新包体。
+- 当前版本：`v1.1.10`；本项目不提供自动"更新版本"功能，版本号由维护者手动维护，用户侧用 `Update-ProjectMe.ps1` 应用新包体。
 - 示例文章只有"ProjectMe 是什么"和"ProjectMe 更新日志"两篇，后者直接引用根目录的 `CHANGELOG.md`。
 - `logs/`、`old/` 与 `.projectme-serve.json` 是本地运行产物，已在 `.gitignore` 中排除。
 

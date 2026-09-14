@@ -7,7 +7,8 @@
 #
 # 行为：
 #   * 只写入包体内的“程序文件”，用户数据（articles/、articles.json、timeline.json、
-#     projectme.config.json、.gitignore、logs/、old/、.git/）永不写入、永不删除；
+#     projectme.config.json、.gitignore、logs/、old/、.git/、各插件自己的 plugins\<插件名>\config.json）
+#     永不写入、永不删除；
 #   * project-info.json 采用合并策略：版本号取自包体，其余键保留本地值；
 #   * 更新前自动在 old\ 生成完整备份，失败时按文件精确回滚；
 #   * 本地内容与包体不同的文件会逐个询问“保留本地版本 / 用包体覆盖”。
@@ -50,6 +51,8 @@ $script:ProtectedFiles = @('articles.json', 'timeline.json', 'projectme.config.j
 function Test-ProjectProtectedPath([string]$Relative) {
   $normalized = $Relative -replace '/', '\'
   if ($script:ProtectedFiles -contains $normalized) { return $true }
+  # 插件自己的配置文件属于用户数据
+  if ($normalized -match '^plugins\\[^\\]+\\config\.json$') { return $true }
   foreach ($directory in $script:ProtectedDirectories) {
     if ($normalized -eq $directory) { return $true }
     if ($normalized.StartsWith($directory + '\', [StringComparison]::OrdinalIgnoreCase)) { return $true }

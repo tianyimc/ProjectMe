@@ -1,6 +1,6 @@
 const app = document.querySelector('#app');
 let articles = [];
-let projectInfo = { name: 'ProjectMe', version: '1.1.9', generation: 1, author: 'tianyimc.com', authorUrl: 'https://tianyimc.com', copyright: '© 2026 tianyimc.com 依据 MIT 许可证开放源代码', license: 'MIT', licenseName: 'MIT 许可证', licenseUrl: 'https://opensource.org/license/mit', description: '一个无后端依赖的文集项目：网页负责阅读，CLI 与 WPF GUI 负责维护。', title: 'ProjectMe · 个人文集' };
+let projectInfo = { name: 'ProjectMe', version: '1.1.10', generation: 1, author: 'tianyimc.com', authorUrl: 'https://tianyimc.com', copyright: '© 2026 tianyimc.com 依据 MIT 许可证开放源代码', license: 'MIT', licenseName: 'MIT 许可证', licenseUrl: 'https://opensource.org/license/mit', description: '一个无后端依赖的文集项目：网页负责阅读，CLI 与 WPF GUI 负责维护。', title: 'ProjectMe · 个人文集' };
 
 function renderHome() {
   const orderedArticles = [...articles].sort((a, b) => (b.order ?? -1) - (a.order ?? -1));
@@ -53,7 +53,7 @@ function renderAbout() {
       <li><strong>文集核心</strong>：基于原生 HTML、CSS 与 JavaScript 实现，没有后端依赖，也不需要构建步骤，任何静态托管都能直接发布。</li>
       <li><strong>命令行管理器</strong>：基于 PowerShell，负责文章索引、时间轴、本地预览、项目自检和版本回滚，并通过插件扩展额外能力。</li>
       <li><strong>GUI 管理器</strong>：基于 WPF + PowerShell 的 Windows 工作台，把同样的维护能力做成可搜索、可编辑的窗口界面。</li>
-      <li><strong>插件</strong>：可选能力放在 <code>plugins/</code> 目录，每个插件一个文件夹，由 <code>projectme.config.json</code> 的 <code>plugins.&lt;插件名&gt;.enabled</code> 开关；未启用的插件不会在 CLI 或 GUI 中显示入口。从 Obsidian 导入就是一个默认关闭的插件。</li>
+      <li><strong>插件</strong>：可选能力放在 <code>plugins/</code> 目录，每个插件一个文件夹，配置也放在插件自己的 <code>config.json</code> 里；未启用的插件不会在 CLI 或 GUI 中显示入口。本版本不随包提供任何插件。</li>
       <li><strong>数据</strong>：正文是 Markdown，索引是 JSON，全部是可读的纯文本，便于长期保存、迁移和版本管理。</li>
     </ul>
     <h2>关于作者</h2>

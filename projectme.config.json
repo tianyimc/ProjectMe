@@ -3,15 +3,6 @@
                   "port":  4173,
                   "mode":  "background"
               },
-    "obsidian":  {
-                     "sourceRoot":  "",
-                     "preview":  true
-                 },
-    "plugins":  {
-                    "obsidian-import":  {
-                                            "enabled":  false
-                                        }
-                },
     "articleList":  {
                         "pageSize":  10,
                         "groupBySection":  true

@@ -81,6 +81,10 @@ if (Test-Path $pluginsPath -PathType Container) {
     }
     $entryPath = Join-Path $folder.FullName ([string]$manifest.entry)
     if (-not (Test-Path $entryPath -PathType Leaf)) { throw "Plugin entry file missing: $entryPath" }
+    $pluginConfigPath = Join-Path $folder.FullName 'config.json'
+    if (Test-Path $pluginConfigPath -PathType Leaf) {
+      try { $null = Get-Content -Raw -Encoding UTF8 $pluginConfigPath | ConvertFrom-Json } catch { throw "Invalid plugin config: $pluginConfigPath" }
+    }
     $pluginCount++
   }
 }

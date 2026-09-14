@@ -110,8 +110,7 @@
         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
           <TextBox x:Name="SearchBox" Width="230" Margin="0,0,10,0" ToolTip="搜索文章标题、类别或节"/>
           <Button x:Name="RefreshButton" Content="刷新"/>
-          <Button x:Name="NewArticleButton" Content="新建文章" Style="{StaticResource PrimaryButton}"/>
-          <Button x:Name="ImportObsidianButton" Content="从 Obsidian 导入" Style="{StaticResource PurpleButton}" Margin="0" Visibility="Collapsed"/>
+          <Button x:Name="NewArticleButton" Content="新建文章" Style="{StaticResource PrimaryButton}" Margin="0"/>
         </StackPanel>
       </Grid>
       <Grid x:Name="MaintenanceHeaderPanel" Visibility="Collapsed">
@@ -179,15 +178,6 @@
               <TextBlock Text="启动静态服务并在浏览器中查看当前文集。" Foreground="{DynamicResource TextSecondary}" Margin="0,4,0,16" TextWrapping="Wrap"/>
               <StackPanel Orientation="Horizontal"><TextBlock Text="端口" VerticalAlignment="Center" Margin="0,0,8,0"/><TextBox x:Name="MaintenancePortBox" Width="90"/><Button x:Name="MaintenanceStartButton" Content="启动预览" Style="{StaticResource PrimaryButton}"/><Button x:Name="MaintenanceStopButton" Content="停止预览"/><Button x:Name="MaintenanceOpenSiteButton" Content="打开网站"/><Button x:Name="MaintenanceForceStopButton" Content="强停所有预览" Foreground="#FFFFFF" Background="#B3261E" BorderBrush="#B3261E"/></StackPanel>
               <TextBlock x:Name="MaintenanceServiceText" Foreground="{DynamicResource TextSecondary}" Margin="0,8,0,0" TextWrapping="Wrap"/>
-            </StackPanel>
-          </Border>
-          <Border x:Name="ObsidianImportPanel" Visibility="Collapsed" Background="{DynamicResource SurfaceBackground}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="24" Margin="0,0,0,16">
-            <StackPanel>
-              <TextBlock Text="Obsidian 导入" Style="{StaticResource TitleTextStyle}" FontSize="18" Foreground="{DynamicResource TextPrimary}"/>
-              <TextBlock Text="设置从“从 Obsidian 导入”打开目录选择窗口时的默认位置。" Foreground="{DynamicResource TextSecondary}" Margin="0,4,0,16" TextWrapping="Wrap"/>
-              <TextBlock Text="默认导入源" Style="{DynamicResource FieldLabelStyle}"/>
-              <DockPanel LastChildFill="True"><Button x:Name="ClearDefaultObsidianSourceButton" DockPanel.Dock="Right" Content="清除设置" Margin="8,0,0,0"/><Button x:Name="SaveDefaultObsidianSourceButton" DockPanel.Dock="Right" Content="保存设置" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0"/><Button x:Name="BrowseDefaultObsidianSourceButton" DockPanel.Dock="Right" Content="选择目录" Margin="8,0,0,0"/><TextBox x:Name="DefaultObsidianSourceBox" IsReadOnly="True" Margin="0,3,0,12"/></DockPanel>
-              <TextBlock x:Name="DefaultObsidianSourceHintText" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap"/>
             </StackPanel>
           </Border>
           <Border Background="{DynamicResource SurfaceBackground}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="24" Margin="0,0,0,16">

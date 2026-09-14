@@ -17,7 +17,6 @@ try {
   $script:config = Get-ProjectConfig $root
   $script:safeMode = [bool]$SafeMode
   if ($script:safeMode) {
-    foreach ($key in @($script:config.plugins.Keys)) { $script:config.plugins[$key] = [pscustomobject]@{ enabled = $false } }
     Write-ProjectLog '安全模式：本次运行已忽略全部插件' 'INFO' $root
   }
   $script:articles = @()
@@ -166,7 +165,7 @@ try {
     $dialog = New-Object Windows.Window; $dialog.Title = '删除文章'; $dialog.Owner = $script:window; $dialog.Width = 620; $dialog.Height = 330; $dialog.ResizeMode = 'NoResize'; $dialog.WindowStartupLocation = 'CenterOwner'; $dialog.Background = $script:window.Resources['WindowBackground']
     $panel = New-Object Windows.Controls.StackPanel; $panel.Margin = New-Object Windows.Thickness(28)
     $heading = New-Object Windows.Controls.TextBlock; $heading.Text = '此操作不可恢复'; $heading.FontSize = 20; $heading.FontWeight = 'SemiBold'; $heading.Foreground = [Windows.Media.Brushes]::Firebrick; $panel.Children.Add($heading) | Out-Null
-    $warning = New-Object Windows.Controls.TextBlock; $warning.Text = '删除后将同时移除文章索引、Markdown 正文和时间轴中的对应条目。Obsidian 源文件不会被删除，下次导入仍可能重新创建此文章。'; $warning.TextWrapping = 'Wrap'; $warning.Margin = New-Object Windows.Thickness(0,14,0,14); $warning.Foreground = $script:window.Resources['TextPrimary']; $panel.Children.Add($warning) | Out-Null
+    $warning = New-Object Windows.Controls.TextBlock; $warning.Text = '删除后将同时移除文章索引、Markdown 正文和时间轴中的对应条目。由插件导入的源文件不会被删除，下次导入仍可能重新创建此文章。'; $warning.TextWrapping = 'Wrap'; $warning.Margin = New-Object Windows.Thickness(0,14,0,14); $warning.Foreground = $script:window.Resources['TextPrimary']; $panel.Children.Add($warning) | Out-Null
     $details = New-Object Windows.Controls.TextBlock; $details.Text = "标题：$($article.title)`n文件：articles\$($article.file)"; $details.TextWrapping = 'Wrap'; $details.Margin = New-Object Windows.Thickness(0,0,0,18); $details.Foreground = $script:window.Resources['TextSecondary']; $panel.Children.Add($details) | Out-Null
     $confirm = New-Object Windows.Controls.CheckBox; $confirm.Content = '确认删除'; $confirm.Foreground = $script:window.Resources['TextPrimary']; $panel.Children.Add($confirm) | Out-Null
     $buttons = New-Object Windows.Controls.StackPanel; $buttons.Orientation = 'Horizontal'; $buttons.HorizontalAlignment = 'Right'; $buttons.Margin = New-Object Windows.Thickness(0,22,0,0)
@@ -279,7 +278,7 @@ try {
   # --- 插件宿主 ---
   # 插件在 plugins\<插件名>\plugin.json 中声明自己占用的 GUI 控件；这些控件在 XAML 中默认隐藏，
   # 只有插件启用且初始化成功时才显示，因此插件被禁用或整个文件夹被删除时入口都不会出现。
-  $script:plugins = @(Get-ProjectPlugins -Root $root -Config $script:config | Where-Object { $_.Enabled })
+  $script:plugins = @(Get-ProjectPlugins -Root $root -SafeMode:$script:safeMode | Where-Object { $_.Enabled })
   $script:claimedControls = @{}
   foreach ($plugin in $script:plugins) {
     $guiFunction = ''

@@ -76,7 +76,7 @@ function Get-ZipPluginInfo {
 }
 
 function Get-PluginInventory {
-  $installed = @(Get-ProjectPlugins -Root $root -Config (Get-ProjectConfig -Root $root))
+  $installed = @(Get-ProjectPlugins -Root $root)
   $pending = New-Object System.Collections.Generic.List[object]
   $ignored = New-Object System.Collections.Generic.List[string]
   if (Test-Path $pluginsDirectory -PathType Container) {
@@ -153,7 +153,7 @@ function Show-PluginInventory {
 
 function Resolve-PluginById {
   param([string]$Id)
-  $installed = @(Get-ProjectPlugins -Root $root -Config (Get-ProjectConfig -Root $root))
+  $installed = @(Get-ProjectPlugins -Root $root)
   return @($installed | Where-Object { $_.Id -eq $Id } | Select-Object -First 1)
 }
 
@@ -241,9 +241,13 @@ function Install-PluginPackage {
     if (-not (Test-Path $pluginsDirectory -PathType Container)) { New-Item -ItemType Directory -Path $pluginsDirectory -Force | Out-Null }
     $target = Join-Path $pluginsDirectory $id
     $existing = Resolve-PluginById -Id $id
-    $hadSetting = $false
-    $configNow = Get-ProjectConfig -Root $root
-    if ($configNow.plugins -is [hashtable] -and $configNow.plugins.ContainsKey($id)) { $hadSetting = $true }
+    $targetConfigPath = Join-Path $target 'config.json'
+    $savedConfigText = $null
+    $hadConfig = $false
+    if (Test-Path $targetConfigPath -PathType Leaf) {
+      $savedConfigText = [IO.File]::ReadAllText($targetConfigPath, [Text.UTF8Encoding]::new($false))
+      $hadConfig = $true
+    }
 
     if (Test-Path $target -PathType Container) {
       $installedVersion = if ($null -ne $existing -and $null -ne $existing.Manifest -and $null -ne $existing.Manifest.PSObject.Properties['version']) { [string]$existing.Manifest.version } else { '未知' }
@@ -262,14 +266,28 @@ function Install-PluginPackage {
     Get-ChildItem -LiteralPath $pluginRoot -Force | ForEach-Object {
       Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $target $_.Name) -Recurse -Force
     }
-    if (-not $hadSetting) { Set-ProjectPluginEnabled -Id $id -Enabled $false -Root $root }
+
+    # 插件的 config.json 属于用户数据：升级时保留本地已有的那一份，缺失时才落回包内默认值。
+    if ($hadConfig) {
+      [IO.File]::WriteAllText($targetConfigPath, $savedConfigText, [Text.UTF8Encoding]::new($false))
+      Write-Host '已保留原有的插件配置 config.json。' -ForegroundColor DarkGray
+    } elseif (-not (Test-Path $targetConfigPath -PathType Leaf)) {
+      $defaultEnabled = $false
+      if ($null -ne $manifest.PSObject.Properties['defaultEnabled'] -and $null -ne $manifest.defaultEnabled) { $defaultEnabled = [bool]$manifest.defaultEnabled }
+      $defaultConfig = [pscustomobject]@{ enabled = $defaultEnabled }
+      Write-ProjectJsonAtomic -Value $defaultConfig -Path $targetConfigPath -Depth 12
+      Write-Host '已按规范生成插件配置 config.json（enabled = ' -NoNewline -ForegroundColor DarkGray
+      Write-Host $defaultEnabled -NoNewline -ForegroundColor DarkGray
+      Write-Host '）。' -ForegroundColor DarkGray
+    }
+
     Write-ProjectLog "已安装插件：$id（版本 $newVersion）" 'INFO' $root
     Write-Host "已安装插件：$id（$newVersion）" -ForegroundColor Green
-    if ($hadSetting) {
-      $stateNow = if ((Get-ProjectConfig -Root $root).plugins[$id].enabled) { '保持启用' } else { '保持禁用' }
-      Write-Host "现有开关状态$stateNow。" -ForegroundColor DarkGray
+    $stateNow = Get-ProjectPluginConfig -Id $id -Root $root
+    if ($null -ne $stateNow -and [bool]$stateNow.enabled) {
+      Write-Host '当前开关状态：已启用。' -ForegroundColor DarkGray
     } else {
-      Write-Host '插件默认处于禁用状态；用 -Enable 或菜单「启用插件」打开它。' -ForegroundColor DarkGray
+      Write-Host '当前开关状态：已禁用；用 -Enable 或菜单「启用插件」打开它。' -ForegroundColor DarkGray
     }
     return $true
   } finally {
@@ -297,10 +315,9 @@ function Uninstall-PluginPackage {
   if ($null -eq $plugin) { Write-Host "找不到插件：$Id" -ForegroundColor Red; return $false }
   if (-not $Force -and -not $Yes) {
     Write-Host "即将卸载插件：$Id（$($plugin.Root)）" -ForegroundColor Yellow
-    Write-Host '插件目录会被移入 old\removed-plugins（可恢复），配置里的插件开关会被移除；插件自己的设置项（例如 obsidian.*）会保留。'
+    Write-Host '插件目录（含该插件自己的 config.json）会被移入 old\removed-plugins（可恢复），主程序配置不受影响。'
     if (([string](Read-Host "请输入插件名确认卸载：$Id")).Trim() -ne $Id) { Write-Host '输入不匹配，已取消卸载。' -ForegroundColor Yellow; return $false }
   }
-  Remove-ProjectPluginSetting -Id $Id -Root $root | Out-Null
   $moved = Move-PluginToRemoved -Path $plugin.Root -Id $Id -Purge:$Purge
   Write-Host "已卸载插件：$Id" -ForegroundColor Green
   if ($moved) { Write-Host "目录已保留在：$moved" -ForegroundColor DarkGray }
@@ -310,7 +327,7 @@ function Uninstall-PluginPackage {
 
 function Set-AllPluginsEnabledState {
   param([Parameter(Mandatory)][bool]$Enabled)
-  $installed = @(Get-ProjectPlugins -Root $root -Config (Get-ProjectConfig -Root $root))
+  $installed = @(Get-ProjectPlugins -Root $root)
   $changed = 0
   $skipped = New-Object System.Collections.Generic.List[string]
   foreach ($plugin in $installed) {
@@ -432,9 +449,13 @@ while ($true) {
           Write-Host "目录：$($plugin.Root)"
           if ($plugin.Status -eq 'ok') { Write-Host "入口：$($plugin.EntryPath)" }
           if ($plugin.Problem) { Write-Host "问题：$($plugin.Problem)" -ForegroundColor Yellow }
-          Write-Host "配置项：projectme.config.json → plugins.$($plugin.Id).enabled"
+          Write-Host "插件配置：$($plugin.Id)\config.json$(if (Test-Path $plugin.ConfigPath -PathType Leaf) { '' } else { '（尚未生成；启用或首次保存时创建）' })"
           Write-Host ''
           Write-Host (Get-Content -Raw -Encoding UTF8 (Join-Path $plugin.Root 'plugin.json'))
+          if (Test-Path $plugin.ConfigPath -PathType Leaf) {
+            Write-Host '--- config.json ---'
+            Write-Host (Get-Content -Raw -Encoding UTF8 $plugin.ConfigPath)
+          }
         }
       }
       '9' { }

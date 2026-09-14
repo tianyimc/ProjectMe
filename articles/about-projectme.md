@@ -75,17 +75,15 @@ ProjectMe 的全部状态都由这几个可读文件描述：
 
 ## 插件
 
-可选能力以插件形式放在 `plugins/` 目录，每个插件一个文件夹，插件主目录就是包含 `.ps1` 文件的那一层。开关写在 `projectme.config.json`：
+可选能力以插件形式放在 `plugins/` 目录，每个插件一个文件夹，插件主目录就是包含 `.ps1` 文件的那一层。插件的配置也放在它自己的目录里（`plugins\<插件名>\config.json`），主程序配置 `projectme.config.json` 只保存主程序设置：
 
 ```json
-"plugins": { "obsidian-import": { "enabled": false } }
+{ "enabled": false }
 ```
 
-插件不存在、被禁用或初始化失败时，CLI 与 GUI 都不会显示它的入口。仓库自带一个**默认关闭**的 `obsidian-import` 插件：它按"阶段/卷/节.md"的结构把 Obsidian 库批量导入，并用 `-WhatIf` 先预览结果（脚本默认以自身目录为项目根，从其它位置调用时请传 `-ProjectRoot`）：
+`enabled` 是宿主维护的保留键，其余键归插件自己使用。插件不存在、被禁用或初始化失败时，CLI 与 GUI 都不会显示它的入口；安装、启用、禁用、卸载都可以交给根目录的 `Manage-Plugins.ps1` 完成。
 
-```powershell
-.\plugins\obsidian-import\Import-ObsidianCorpus.ps1 -SourceRoot "D:\Notes\MyVault" -WhatIf
-```
+**本版本不随包提供任何插件。** “从 Obsidian 导入”插件仍在完善中（格式兼容与拆分规则尚未定型），因此暂不提供，仓库里也不包含它的内容。
 
 ## 适合谁
 
