@@ -43,6 +43,7 @@ function Get-DefaultProjectConfig {
     obsidian = [pscustomobject]@{ sourceRoot = ''; preview = $true }
     articleList = [pscustomobject]@{ pageSize = 10; groupBySection = $true }
     newArticle = [pscustomobject]@{ tags = @('随笔'); date = ''; readingTime = '3 分钟阅读' }
+    update = [pscustomobject]@{ keep = @() }
     plugins = @{}
   }
 }
@@ -63,6 +64,14 @@ function Get-ProjectConfig {
     if ($null -ne $raw.newArticle.tags) { $defaults.newArticle.tags = @($raw.newArticle.tags | ForEach-Object { [string]$_ } | Where-Object { $_ }) }
     if ($null -ne $raw.newArticle.date) { $defaults.newArticle.date = [string]$raw.newArticle.date }
     if ($null -ne $raw.newArticle.readingTime) { $defaults.newArticle.readingTime = [string]$raw.newArticle.readingTime }
+    try {
+      if ($null -ne $raw.update -and $null -ne $raw.update.PSObject.Properties['keep']) {
+        if ($raw.update.keep -is [string]) { Write-ProjectLog '配置 update.keep 应为数组，已按单项处理。' 'WARN' $Root }
+        $defaults.update.keep = @($raw.update.keep | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+      }
+    } catch {
+      Write-ProjectLog "update.keep 读取失败，按空列表处理：$($_.Exception.Message)" 'WARN' $Root
+    }
     try {
       if ($null -ne $raw.plugins) {
         foreach ($property in @($raw.plugins.PSObject.Properties)) {
@@ -365,10 +374,12 @@ function Add-ChangelogEntry {
 }
 
 function Get-SnapshotPath {
-  param([Parameter(Mandatory)][string]$Root, [Parameter(Mandatory)][string]$Version, [datetime]$Date = (Get-Date))
+  param([Parameter(Mandatory)][string]$Root, [Parameter(Mandatory)][string]$Version, [datetime]$Date = (Get-Date), [string]$Label = '')
   $oldDirectory = Join-Path $Root 'old'
   if (-not (Test-Path $oldDirectory -PathType Container)) { New-Item -ItemType Directory -Path $oldDirectory -Force | Out-Null }
   $dateName = $Date.ToString('yyyyMMdd')
+  $labelSuffix = ''
+  if (-not [string]::IsNullOrWhiteSpace($Label)) { $labelSuffix = '-' + ($Label.Trim() -replace '[^\w\-]', '-') }
   $versionPattern = "v$([regex]::Escape($Version))-*.zip"
   $existing = @(Get-ChildItem -LiteralPath $oldDirectory -Filter $versionPattern -File -ErrorAction SilentlyContinue)
   $generation = 1
@@ -376,24 +387,25 @@ function Get-SnapshotPath {
     $numbers = @($existing | ForEach-Object { if ($_.BaseName -match '-Gen(\d+)$') { [int]$Matches[1] } else { 1 } })
     $generation = ([int]($numbers | Measure-Object -Maximum).Maximum) + 1
   }
-  $name = if ($generation -eq 1) { "v$Version-$dateName.zip" } else { "v$Version-$dateName-Gen$generation.zip" }
+  $name = if ($generation -eq 1) { "v$Version-$dateName$labelSuffix.zip" } else { "v$Version-$dateName$labelSuffix-Gen$generation.zip" }
   $path = Join-Path $oldDirectory $name
   while (Test-Path $path) {
     $generation++
-    $path = Join-Path $oldDirectory "v$Version-$dateName-Gen$generation.zip"
+    $path = Join-Path $oldDirectory "v$Version-$dateName$labelSuffix-Gen$generation.zip"
   }
   return $path
 }
 
 function New-ProjectSnapshot {
-  param([Parameter(Mandatory)][string]$Root, [Parameter(Mandatory)][string]$Destination)
+  param([Parameter(Mandatory)][string]$Root, [Parameter(Mandatory)][string]$Destination, [string[]]$Exclude = @())
   $destinationDirectory = Split-Path -Parent $Destination
   if (-not (Test-Path $destinationDirectory -PathType Container)) { New-Item -ItemType Directory -Path $destinationDirectory -Force | Out-Null }
   $staging = Join-Path ([IO.Path]::GetTempPath()) ('ProjectMeSnapshot-' + [guid]::NewGuid().ToString('N'))
   $temporaryZip = "$Destination.$([guid]::NewGuid().ToString('N')).tmp.zip"
   New-Item -ItemType Directory -Path $staging -Force | Out-Null
   try {
-    Get-ChildItem -LiteralPath $Root -Force | Where-Object { $_.Name -notin @('old', 'logs', '.projectme-serve.json') } | ForEach-Object {
+    $skipNames = @('old', 'logs', '.projectme-serve.json') + @($Exclude | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+    Get-ChildItem -LiteralPath $Root -Force | Where-Object { $_.Name -notin $skipNames } | ForEach-Object {
       Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $staging $_.Name) -Recurse -Force
     }
     Add-Type -AssemblyName System.IO.Compression.FileSystem

@@ -2,7 +2,7 @@
 
 > 一个无后端依赖的个人文集：网页负责阅读，CLI 和 GUI 负责维护。
 
-当前版本：**v1.1.7** · 作者：[tianyimc.com](https://tianyimc.com)
+当前版本：**v1.1.8** · 作者：[tianyimc.com](https://tianyimc.com)
 
 仓库名称：**ProjectMe** · 许可证：**MIT**（详见 [`LICENSE`](LICENSE)）
 
@@ -102,6 +102,7 @@ WPF GUI 的“预览与维护 → Obsidian 导入”可以设置默认导入源�
 | `ProjectMe.Gui.ps1` / `ProjectMe.Gui.xaml` | WPF GUI 窗口管理器 |
 | `ProjectMe.Gui.WinForms.ps1` | 旧版隐藏回退 GUI |
 | `ProjectMe.Common.ps1` | CLI、GUI 共用函数与插件宿主 API |
+| `Update-ProjectMe.ps1` | 无损更新器：把新版本包体应用到当前安装 |
 | `plugins/` | 插件目录，每个插件一个文件夹（默认关闭的 `obsidian-import` 在其中） |
 | `project-info.json` | 名称、版本、作者等项目元数据 |
 | `projectme.config.json` | 端口、文章列表和新文章默认配置 |
@@ -140,6 +141,7 @@ WPF GUI 的“预览与维护 → Obsidian 导入”可以设置默认导入源�
 - `articleList.pageSize` 与 `articleList.groupBySection`：CLI 列表行为；
 - 网页文集主页固定按 20 篇一页展示，筛选后同样分页。
 - `newArticle`：新文章默认标签、日期和阅读时间。
+- `update.keep`：更新器默认保留本地版本的路径列表（相对项目根，支持 `*` 通配），见下文「升级」。
 
 配置错误时会写入日志，并回退到内置默认值。
 
@@ -190,6 +192,37 @@ GUI 插件需要先在 `ProjectMe.Gui.xaml` 里预置自己要用的控件，并
 
 > 约定：包含中文的 `.ps1` 必须保存为**带 BOM 的 UTF-8**，否则 Windows PowerShell 5.1 会按系统代码页解码而无法解析脚本。
 
+## 升级
+
+下载新版本的完整包体（zip，或已解压的目录）后，在旧版安装目录运行一次更新器即可，**不需要手动解压覆盖，也不会碰你的文章**：
+
+```powershell
+.\Update-ProjectMe.ps1 -Package .\ProjectMe-v1.1.9.zip
+```
+
+更新器会先打印计划（新增 / 更新 / 跳过各多少、具体是哪些文件），确认后才开始写入：
+
+- **永不写入、永不删除的用户数据**：`articles/`、`articles.json`、`timeline.json`、`projectme.config.json`、`.gitignore`、`logs/`、`old/`、`.git/`。即使包体里带了同名文件也会跳过。
+- **`project-info.json` 采用合并**：版本号取自包体，你本地自定义的 `title`、`author`、`copyright` 等保持不变。
+- **本地改过的程序文件**（例如 `styles.css`、`index.html`）：会被逐个询问「保留本地版本 / 用包体覆盖」，可随时改主意（`A` 之后全部覆盖、`L` 之后全部保留、`Q` 取消）；选择「保留」的还可以写入 `update.keep` 记住，下次不再询问。
+- **更新前自动备份**到 `old/v<旧版本>-<日期>-preupdate.zip`（不含 `.git/`）；写入过程中任何失败都会按文件精确回滚。
+- 更新结束后自动运行 `Check-ProjectMe.ps1` 自检，并提示需要重启 CLI / GUI。
+
+常用参数：
+
+| 参数 | 用途 |
+| --- | --- |
+| `-WhatIf` | 只打印计划，不应用包体（项目文件零改动） |
+| `-Overwrite` | 不询问，本地不同的程序文件全部用包体覆盖 |
+| `-KeepLocal` | 不询问，本地不同的程序文件全部保留 |
+| `-Keep <路径>` | 额外指定永不覆盖的路径（可多次、支持通配） |
+| `-Force` | 允许同版本重跑（更新中断后续跑也用它） |
+| `-ProjectRoot <目录>` | 更新另一个安装目录 |
+
+回滚方式：运行 `ProjectMe.ps1` → **12. 回滚版本**，或直接用 `old/` 里的备份 zip 覆盖回来。
+
+> 更新程序文件期间请关闭正在运行的 GUI 窗口；更新器会尝试自动停止本地预览服务。
+
 ## 部署
 
 将 `index.html`、`404.html`、脚本、样式、`project-info.json`、`articles.json`、`timeline.json`、`articles/` 和 `CHANGELOG.md`（"ProjectMe 更新日志"文章直接引用它）一起部署到 GitHub Pages、Netlify 或其他静态托管服务即可。
@@ -197,7 +230,7 @@ GUI 插件需要先在 `ProjectMe.Gui.xaml` 里预置自己要用的控件，并
 ## 仓库
 
 - 仓库名称：`ProjectMe`；已执行 `git init`，尚未配置远程地址，需要发布时再 `git remote add origin <仓库地址>`。
-- 当前版本：`v1.1.7`；本项目不提供自动"更新版本"功能，版本号由维护者手动维护。
+- 当前版本：`v1.1.8`；本项目不提供自动"更新版本"功能，版本号由维护者手动维护，用户侧用 `Update-ProjectMe.ps1` 应用新包体。
 - 示例文章只有"ProjectMe 是什么"和"ProjectMe 更新日志"两篇，后者直接引用根目录的 `CHANGELOG.md`。
 - `logs/`、`old/` 与 `.projectme-serve.json` 是本地运行产物，已在 `.gitignore` 中排除。
 

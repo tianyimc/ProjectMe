@@ -1,5 +1,13 @@
 # ProjectMe 更新日志
 
+## v1.1.8 - 2026-09-14
+- 新增无损更新器 `Update-ProjectMe.ps1`：下载新版本包体后运行一次即可升级程序文件，无需手动解压覆盖。
+- 更新器永不写入、永不删除用户数据（`articles/`、`articles.json`、`timeline.json`、`projectme.config.json`、`.gitignore`、`logs/`、`old/`、`.git/`），包体即使带有同名文件也会跳过。
+- `project-info.json` 采用合并策略：版本号取自包体，本地自定义的标题、作者、版权等保持不变。
+- 本地内容与包体不同的文件会逐个询问“保留本地版本 / 用包体覆盖”，也可用 `-Overwrite`、`-KeepLocal`、`-Keep` 或配置项 `update.keep` 预设。
+- 更新前自动在 `old/` 生成完整备份（`...-preupdate.zip`），写入过程失败时按文件精确回滚；更新结束后自动运行项目自检。
+- 版本号提升到 v1.1.8。
+
 ## v1.1.7 - 2026-09-14
 - 新增插件机制：插件统一放在 `plugins/` 目录，每个插件一个文件夹，由 `projectme.config.json` 的 `plugins.<插件名>.enabled` 启用或关闭。
 - “从 Obsidian 导入”改为插件 `plugins/obsidian-import/`，导入逻辑与行为保持不变，默认关闭。
