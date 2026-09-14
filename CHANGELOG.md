@@ -1,5 +1,14 @@
 # ProjectMe 更新日志
 
+## v1.1.9 - 2026-09-14
+- 新增插件管理器 `Manage-Plugins.ps1`：启动即扫描 `plugins\`，文件夹显示为“已安装插件”、zip 显示为“发现的未安装插件”。
+- 支持安装（解压并校验包内结构）、启用、禁用、卸载插件，全部通过脚本完成，无需手改 `projectme.config.json`。
+- 安装后默认禁用；同名插件按升级处理，旧目录移入 `old\removed-plugins\` 并保留原启用状态；卸载同样可恢复（`-Purge` 才永久删除）。
+- 新增「安全模式」：`ProjectMe.ps1 -SafeMode` / `ProjectMe.Gui.ps1 -SafeMode` 本次运行忽略全部插件且不改配置；管理器可直接以安全模式启动 CLI/GUI。
+- CLI 主菜单新增 `14. 插件管理器`，从管理器返回后菜单立即刷新；GUI 维护页新增「插件管理器」按钮。
+- `ProjectMe.Common.ps1`：插件清单增加 `Status`/`Problem`（损坏插件会被列出而不是静默跳过，且不会被执行），新增 `Set-ProjectPluginEnabled`、`Remove-ProjectPluginSetting`，zip 路径校验改为全项目共享。
+- 版本号提升到 v1.1.9。
+
 ## v1.1.8 - 2026-09-14
 - 新增无损更新器 `Update-ProjectMe.ps1`：下载新版本包体后运行一次即可升级程序文件，无需手动解压覆盖。
 - 更新器永不写入、永不删除用户数据（`articles/`、`articles.json`、`timeline.json`、`projectme.config.json`、`.gitignore`、`logs/`、`old/`、`.git/`），包体即使带有同名文件也会跳过。

@@ -1,8 +1,18 @@
-﻿$ErrorActionPreference = 'Stop'
+﻿[CmdletBinding()]
+param(
+  [switch]$SafeMode
+)
+
+$ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 . (Join-Path $root 'ProjectMe.Common.ps1')
 Write-ProjectLog 'CLI 启动'
 $config = Get-ProjectConfig -Root $root
+if ($SafeMode) {
+  foreach ($key in @($config.plugins.Keys)) { $config.plugins[$key] = [pscustomobject]@{ enabled = $false } }
+  Write-Host '安全模式：本次运行不加载任何插件。' -ForegroundColor Yellow
+  Write-ProjectLog '安全模式：本次运行已忽略全部插件' 'INFO' $root
+}
 
 function Pause-Menu { [void](Read-Host '按 Enter 返回菜单') }
 function Clear-Menu { try { Clear-Host } catch { } }
@@ -183,41 +193,47 @@ function Rollback-Version {
     throw
   }
 }
-$pluginMenuItems = @(Get-ProjectPlugins -Root $root -Config $config | Where-Object { $_.Enabled -and $null -ne $_.Manifest.PSObject.Properties['cli'] -and $null -ne $_.Manifest.cli })
-$menuItems = @(
-  [pscustomobject]@{ Number = 1; Label = '文章列表'; Kind = 'builtin'; Action = 'list' }
-  [pscustomobject]@{ Number = 2; Label = '编辑文章属性'; Kind = 'builtin'; Action = 'edit' }
-  [pscustomobject]@{ Number = 3; Label = '删除文章'; Kind = 'builtin'; Action = 'remove' }
-  [pscustomobject]@{ Number = 4; Label = 'GUI 窗口管理器'; Kind = 'builtin'; Action = 'gui' }
-  [pscustomobject]@{ Number = 5; Label = 'Check-ProjectMe'; Kind = 'builtin'; Action = 'check' }
-  [pscustomobject]@{ Number = 6; Label = 'New-Article'; Kind = 'builtin'; Action = 'new' }
-  [pscustomobject]@{ Number = 7; Label = 'serve'; Kind = 'builtin'; Action = 'serve' }
-  [pscustomobject]@{ Number = 8; Label = '服务状态'; Kind = 'builtin'; Action = 'status' }
-  [pscustomobject]@{ Number = 9; Label = '停止后台服务'; Kind = 'builtin'; Action = 'stop' }
-  [pscustomobject]@{ Number = 10; Label = '查看 CLI 日志'; Kind = 'builtin'; Action = 'log' }
-  [pscustomobject]@{ Number = 11; Label = '时间轴'; Kind = 'builtin'; Action = 'timeline' }
-  [pscustomobject]@{ Number = 12; Label = '回滚版本'; Kind = 'builtin'; Action = 'rollback' }
-  [pscustomobject]@{ Number = 13; Label = '关于/版本信息'; Kind = 'builtin'; Action = 'about' }
-)
-foreach ($pluginItem in $pluginMenuItems) {
-  $menuItems += [pscustomobject]@{ Number = $menuItems.Count + 1; Label = [string]$pluginItem.Manifest.cli.label; Kind = 'plugin'; Plugin = $pluginItem }
+function Build-MainMenu([object]$Config) {
+  $pluginItems = @(Get-ProjectPlugins -Root $root -Config $Config | Where-Object { $_.Enabled -and $null -ne $_.Manifest.PSObject.Properties['cli'] -and $null -ne $_.Manifest.cli })
+  $items = @(
+    [pscustomobject]@{ Number = 1; Label = '文章列表'; Kind = 'builtin'; Action = 'list' }
+    [pscustomobject]@{ Number = 2; Label = '编辑文章属性'; Kind = 'builtin'; Action = 'edit' }
+    [pscustomobject]@{ Number = 3; Label = '删除文章'; Kind = 'builtin'; Action = 'remove' }
+    [pscustomobject]@{ Number = 4; Label = 'GUI 窗口管理器'; Kind = 'builtin'; Action = 'gui' }
+    [pscustomobject]@{ Number = 5; Label = 'Check-ProjectMe'; Kind = 'builtin'; Action = 'check' }
+    [pscustomobject]@{ Number = 6; Label = 'New-Article'; Kind = 'builtin'; Action = 'new' }
+    [pscustomobject]@{ Number = 7; Label = 'serve'; Kind = 'builtin'; Action = 'serve' }
+    [pscustomobject]@{ Number = 8; Label = '服务状态'; Kind = 'builtin'; Action = 'status' }
+    [pscustomobject]@{ Number = 9; Label = '停止后台服务'; Kind = 'builtin'; Action = 'stop' }
+    [pscustomobject]@{ Number = 10; Label = '查看 CLI 日志'; Kind = 'builtin'; Action = 'log' }
+    [pscustomobject]@{ Number = 11; Label = '时间轴'; Kind = 'builtin'; Action = 'timeline' }
+    [pscustomobject]@{ Number = 12; Label = '回滚版本'; Kind = 'builtin'; Action = 'rollback' }
+    [pscustomobject]@{ Number = 13; Label = '关于/版本信息'; Kind = 'builtin'; Action = 'about' }
+    [pscustomobject]@{ Number = 14; Label = '插件管理器'; Kind = 'builtin'; Action = 'plugins' }
+  )
+  foreach ($pluginItem in $pluginItems) {
+    $items += [pscustomobject]@{ Number = $items.Count + 1; Label = [string]$pluginItem.Manifest.cli.label; Kind = 'plugin'; Plugin = $pluginItem }
+  }
+  foreach ($pluginItem in $pluginItems) { Write-ProjectLog "已启用插件：$($pluginItem.Id)（CLI 菜单 $($items | Where-Object { $_.Plugin -eq $pluginItem } | Select-Object -First 1 | ForEach-Object { $_.Number })）" }
+  return [pscustomobject]@{ Items = $items; Text = (@($items | ForEach-Object { "$($_.Number). $($_.Label)" }) + '0. 退出') -join "`n" }
 }
-foreach ($pluginItem in $pluginMenuItems) { Write-ProjectLog "已启用插件：$($pluginItem.Id)（CLI 菜单 $($menuItems | Where-Object { $_.Plugin -eq $pluginItem } | Select-Object -First 1 | ForEach-Object { $_.Number })）" }
-$menuText = (@($menuItems | ForEach-Object { "$($_.Number). $($_.Label)" }) + '0. 退出') -join "`n"
+$menu = Build-MainMenu -Config $config
+$menuDirty = $false
 
 while ($true) {
+  if ($menuDirty) { $config = Get-ProjectConfig -Root $root; $menu = Build-MainMenu -Config $config; $menuDirty = $false }
   $info = Get-ProjectInfo
   Clear-Menu
   Write-Host "$(Get-DisplayVersion $info)" -ForegroundColor Cyan
   Write-Host "$($info.title) · 作者：$($info.author) · $($info.copyright)`n"
-  Write-Host $menuText
+  Write-Host $menu.Text
   $choice = Read-Host '请选择'
   if ([Console]::IsInputRedirected -and [string]::IsNullOrWhiteSpace($choice)) { break }
   Write-ProjectLog "菜单选择：$choice"
   try {
     if ($choice -notmatch '^\d+$') { Write-Host '请输入菜单编号。' -ForegroundColor Yellow; Start-Sleep -Milliseconds 500; continue }
     if ([int]$choice -eq 0) { Write-ProjectLog 'CLI 退出'; exit }
-    $selected = @($menuItems | Where-Object { $_.Number -eq [int]$choice } | Select-Object -First 1)
+    $selected = @($menu.Items | Where-Object { $_.Number -eq [int]$choice } | Select-Object -First 1)
     if ($selected.Count -eq 0) { Write-Host '无效的菜单选项。' -ForegroundColor Yellow; Start-Sleep -Milliseconds 500; continue }
     if ($selected[0].Kind -eq 'plugin') {
       try {
@@ -244,6 +260,7 @@ while ($true) {
       'timeline' { Timeline-Menu }
       'rollback' { if (Rollback-Version) { exit } }
       'about' { $currentLog = Get-CurrentChangelog -Root $root -Version $info.version; Write-Host "$($info.description)`n版本 $(Get-DisplayVersion $info)`n作者 $($info.author)`n作者主页 $($info.authorUrl)`n许可证 $($info.licenseName)`n$($info.copyright)`n`n当前版本更新日志：$currentLog"; Pause-Menu }
+      'plugins' { try { & (Join-Path $root 'Manage-Plugins.ps1') } finally { $menuDirty = $true } }
     }
   } catch {
     Write-ProjectLog ("未处理异常：{0}`n{1}" -f $_.Exception.Message, $_.ScriptStackTrace) 'ERROR'

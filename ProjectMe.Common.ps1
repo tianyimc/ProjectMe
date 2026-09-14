@@ -137,39 +137,103 @@ function Get-ProjectPlugins {
   if (-not (Test-Path $directory -PathType Container)) { return @() }
   $plugins = New-Object System.Collections.Generic.List[object]
   foreach ($folder in @(Get-ChildItem -LiteralPath $directory -Directory | Sort-Object Name)) {
+    $status = 'ok'
+    $problem = ''
+    $manifest = $null
+    $entryPath = $null
     $manifestPath = Join-Path $folder.FullName 'plugin.json'
     if (-not (Test-Path $manifestPath -PathType Leaf)) {
-      Write-ProjectLog "插件缺少 plugin.json，已跳过：$($folder.Name)" 'WARN' $Root
-      continue
+      $status = 'missing-manifest'
+      $problem = '缺少 plugin.json'
+    } else {
+      try {
+        $manifest = Get-Content -Raw -Encoding UTF8 $manifestPath | ConvertFrom-Json
+      } catch {
+        $status = 'invalid-manifest'
+        $problem = "plugin.json 无法解析：$($_.Exception.Message)"
+      }
+      if ($status -eq 'ok') {
+        $manifestProblem = Test-ProjectPluginManifest -Manifest $manifest
+        if ($manifestProblem) { $status = 'invalid-manifest'; $problem = $manifestProblem }
+      }
+      if ($status -eq 'ok') {
+        if ($null -ne $manifest.PSObject.Properties['id'] -and -not [string]::IsNullOrWhiteSpace([string]$manifest.id) -and [string]$manifest.id -ne $folder.Name) {
+          Write-ProjectLog "插件 id（$($manifest.id)）与文件夹名（$($folder.Name)）不一致，按文件夹名处理。" 'WARN' $Root
+        }
+        $entryPath = Join-Path $folder.FullName ([string]$manifest.entry)
+        if (-not (Test-Path $entryPath -PathType Leaf)) {
+          $status = 'missing-entry'
+          $problem = "入口脚本不存在：$($manifest.entry)"
+          $entryPath = $null
+        }
+      }
     }
-    try {
-      $manifest = Get-Content -Raw -Encoding UTF8 $manifestPath | ConvertFrom-Json
-    } catch {
-      Write-ProjectLog "插件清单无法解析，已跳过：$($folder.Name)：$($_.Exception.Message)" 'ERROR' $Root
-      continue
-    }
-    $problem = Test-ProjectPluginManifest -Manifest $manifest
-    if ($problem) {
-      Write-ProjectLog "插件清单无效，已跳过：$($folder.Name)：$problem" 'ERROR' $Root
-      continue
-    }
-    if ($null -ne $manifest.PSObject.Properties['id'] -and -not [string]::IsNullOrWhiteSpace([string]$manifest.id) -and [string]$manifest.id -ne $folder.Name) {
-      Write-ProjectLog "插件 id（$($manifest.id)）与文件夹名（$($folder.Name)）不一致，按文件夹名处理。" 'WARN' $Root
-    }
-    $entryPath = Join-Path $folder.FullName ([string]$manifest.entry)
-    if (-not (Test-Path $entryPath -PathType Leaf)) {
-      Write-ProjectLog "插件入口不存在，已跳过：$($folder.Name)：$($manifest.entry)" 'ERROR' $Root
-      continue
+    if ($status -eq 'ok') {
+      $enabled = Test-ProjectPluginEnabled -Id $folder.Name -Config $Config -Manifest $manifest
+    } else {
+      $enabled = $false
+      Write-ProjectLog "插件 $($folder.Name) 状态异常（$status）：$problem" 'WARN' $Root
     }
     $plugins.Add([pscustomobject]@{
       Id = $folder.Name
       Root = $folder.FullName
       Manifest = $manifest
       EntryPath = $entryPath
-      Enabled = Test-ProjectPluginEnabled -Id $folder.Name -Config $Config -Manifest $manifest
+      Enabled = $enabled
+      Status = $status
+      Problem = $problem
     })
   }
   return $plugins.ToArray()
+}
+
+function Set-ProjectPluginEnabled {
+  param([Parameter(Mandatory)][string]$Id, [Parameter(Mandatory)][bool]$Enabled, [string]$Root = (Get-ProjectRoot))
+  $path = Join-Path $Root 'projectme.config.json'
+  $config = if (Test-Path $path -PathType Leaf) { Get-Content -Raw -Encoding UTF8 $path | ConvertFrom-Json } else { Get-DefaultProjectConfig }
+  if ($null -eq $config.PSObject.Properties['plugins'] -or $config.plugins -is [hashtable]) {
+    $existing = [ordered]@{}
+    if ($config.plugins -is [hashtable]) {
+      foreach ($key in @($config.plugins.Keys)) { $existing[$key] = [bool]$config.plugins[$key].enabled }
+    }
+    $pluginsObject = [pscustomobject]@{}
+    foreach ($key in $existing.Keys) { $pluginsObject | Add-Member -NotePropertyName $key -NotePropertyValue ([pscustomobject]@{ enabled = $existing[$key] }) -Force }
+    $config | Add-Member -NotePropertyName plugins -NotePropertyValue $pluginsObject -Force
+  }
+  if ($null -eq $config.plugins.PSObject.Properties[$Id]) {
+    $config.plugins | Add-Member -NotePropertyName $Id -NotePropertyValue ([pscustomobject]@{ enabled = $false }) -Force
+  }
+  if ($null -eq $config.plugins.$Id.PSObject.Properties['enabled']) {
+    $config.plugins.$Id | Add-Member -NotePropertyName enabled -NotePropertyValue $false -Force
+  }
+  $config.plugins.$Id.enabled = [bool]$Enabled
+  Write-ProjectJsonAtomic -Value $config -Path $path -Depth 12
+}
+
+function Remove-ProjectPluginSetting {
+  param([Parameter(Mandatory)][string]$Id, [string]$Root = (Get-ProjectRoot))
+  $path = Join-Path $Root 'projectme.config.json'
+  if (-not (Test-Path $path -PathType Leaf)) { return $false }
+  $config = Get-Content -Raw -Encoding UTF8 $path | ConvertFrom-Json
+  if ($null -eq $config.PSObject.Properties['plugins'] -or $config.plugins -is [hashtable]) { return $false }
+  if ($null -eq $config.plugins.PSObject.Properties[$Id]) { return $false }
+  $config.plugins.PSObject.Properties.Remove($Id) | Out-Null
+  Write-ProjectJsonAtomic -Value $config -Path $path -Depth 12
+  return $true
+}
+
+function Test-ProjectSafeZipEntry {
+  param([Parameter(Mandatory)][string]$Name)
+  if ([string]::IsNullOrWhiteSpace($Name)) { return $false }
+  $normalized = $Name -replace '\\', '/'
+  if ($normalized.StartsWith('/')) { return $false }
+  if ($normalized -match '^[A-Za-z]:') { return $false }
+  foreach ($segment in @($normalized -split '/')) {
+    if ($segment -eq '..') { return $false }
+    $base = [IO.Path]::GetFileNameWithoutExtension($segment)
+    if ($base -match '^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$') { return $false }
+  }
+  return $true
 }
 
 function Get-Articles {

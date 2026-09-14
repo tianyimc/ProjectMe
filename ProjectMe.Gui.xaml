@@ -193,8 +193,8 @@
           <Border Background="{DynamicResource SurfaceBackground}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="24" Margin="0,0,0,16">
             <StackPanel>
               <TextBlock Text="项目维护" Style="{StaticResource TitleTextStyle}" FontSize="18" Foreground="{DynamicResource TextPrimary}"/>
-              <TextBlock Text="检查数据一致性或打开运行日志。" Foreground="{DynamicResource TextSecondary}" Margin="0,4,0,16" TextWrapping="Wrap"/>
-              <StackPanel Orientation="Horizontal"><Button x:Name="MaintenanceCheckButton" Content="运行项目自检" Style="{StaticResource PrimaryButton}"/><Button x:Name="MaintenanceLogButton" Content="查看日志"/></StackPanel>
+              <TextBlock Text="检查数据一致性、管理插件或打开运行日志。" Foreground="{DynamicResource TextSecondary}" Margin="0,4,0,16" TextWrapping="Wrap"/>
+              <StackPanel Orientation="Horizontal"><Button x:Name="MaintenanceCheckButton" Content="运行项目自检" Style="{StaticResource PrimaryButton}"/><Button x:Name="PluginManagerButton" Content="插件管理器"/><Button x:Name="MaintenanceLogButton" Content="查看日志"/></StackPanel>
             </StackPanel>
           </Border>
           <Border Background="{DynamicResource SurfaceBackground}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="24">

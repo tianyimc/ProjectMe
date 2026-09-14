@@ -78,19 +78,6 @@ function Test-ProjectPackageRoot([string]$Path) {
          (Test-Path (Join-Path $Path 'ProjectMe.Common.ps1') -PathType Leaf)
 }
 
-function Test-ProjectSafeZipEntry([string]$Name) {
-  if ([string]::IsNullOrWhiteSpace($Name)) { return $false }
-  $normalized = $Name -replace '\\', '/'
-  if ($normalized.StartsWith('/')) { return $false }
-  if ($normalized -match '^[A-Za-z]:') { return $false }
-  foreach ($segment in @($normalized -split '/')) {
-    if ($segment -eq '..') { return $false }
-    $base = [IO.Path]::GetFileNameWithoutExtension($segment)
-    if ($base -match '^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$') { return $false }
-  }
-  return $true
-}
-
 function Merge-ProjectInfo([object]$Local, [object]$Package) {
   $merged = $Local.PSObject.Copy()
   foreach ($name in @('version', 'generation')) {

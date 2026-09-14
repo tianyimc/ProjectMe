@@ -2,7 +2,7 @@
 
 > 一个无后端依赖的个人文集：网页负责阅读，CLI 和 GUI 负责维护。
 
-当前版本：**v1.1.8** · 作者：[tianyimc.com](https://tianyimc.com)
+当前版本：**v1.1.9** · 作者：[tianyimc.com](https://tianyimc.com)
 
 仓库名称：**ProjectMe** · 许可证：**MIT**（详见 [`LICENSE`](LICENSE)）
 
@@ -103,7 +103,8 @@ WPF GUI 的“预览与维护 → Obsidian 导入”可以设置默认导入源�
 | `ProjectMe.Gui.WinForms.ps1` | 旧版隐藏回退 GUI |
 | `ProjectMe.Common.ps1` | CLI、GUI 共用函数与插件宿主 API |
 | `Update-ProjectMe.ps1` | 无损更新器：把新版本包体应用到当前安装 |
-| `plugins/` | 插件目录，每个插件一个文件夹（默认关闭的 `obsidian-import` 在其中） |
+| `plugins/` | 插件目录，每个插件一个文件夹（默认关闭的 `obsidian-import` 在其中）；`plugins\*.zip` 是待安装插件包 |
+| `Manage-Plugins.ps1` | 插件管理器：安装 / 启用 / 禁用 / 卸载插件，支持安全模式 |
 | `project-info.json` | 名称、版本、作者等项目元数据 |
 | `projectme.config.json` | 端口、文章列表和新文章默认配置 |
 | `LICENSE` | MIT 许可证全文 |
@@ -167,7 +168,30 @@ plugins/
 
 - 键名是插件文件夹名；没有配置项时使用清单里的 `defaultEnabled`（缺省 `false`）。
 - 插件不存在、被禁用或初始化失败时，CLI 菜单与 GUI 都不显示它的入口，其它功能不受影响（失败只写日志）。
-- 配置改动后需要重启 CLI 或 GUI 才会生效。
+- 配置改动后需要重启 CLI 或 GUI 才会生效（CLI 从插件管理器返回时会自动刷新菜单）。
+
+### 插件管理器
+
+不用手改配置：运行根目录的 `Manage-Plugins.ps1`（CLI 菜单 **14. 插件管理器**、GUI“预览与维护 → 项目维护 → 插件管理器”按钮也能打开）。
+
+```powershell
+.\Manage-Plugins.ps1                 # 交互菜单
+.\Manage-Plugins.ps1 -List           # 只看清单
+.\Manage-Plugins.ps1 -Install .\demo.zip
+.\Manage-Plugins.ps1 -Enable demo
+.\Manage-Plugins.ps1 -Disable demo
+.\Manage-Plugins.ps1 -Uninstall demo
+.\Manage-Plugins.ps1 -AllDisabled    # 一键禁用全部插件
+.\Manage-Plugins.ps1 -SafeModeCli    # 以安全模式启动 CLI
+```
+
+扫描规则与行为：
+
+- `plugins\` 下的**文件夹 = 已安装插件**（显示名称、版本、启用状态、是否损坏）；`plugins\*.zip = 发现的未安装插件`（会只读探测包内 `plugin.json`，标注将安装成什么名字，以及是否与已安装插件同名）。
+- **安装**：校验包内路径安全（拒绝 `..`、绝对路径、非法设备名）、必须恰好有一个含 `plugin.json` 的插件主目录、清单与入口必须有效；装好后**默认禁用**。同名插件已存在时按“升级/重装”处理：显示新旧版本、确认后把旧目录移入 `old\removed-plugins\` 并**保留原有启用状态**。
+- **启用 / 禁用**：只写 `projectme.config.json` 的 `plugins.<id>.enabled`，不动文件；状态损坏的插件会拒绝启用并说明原因。
+- **卸载**：需要输入插件名确认，随后删除该插件开关并把目录移入 `old\removed-plugins\<id>-<时间戳>\`（可用 `-Purge` 直接删除）。插件自己的设置项（例如 `obsidian.*`）不会被清理。
+- **安全模式**：`ProjectMe.ps1 -SafeMode` / `ProjectMe.Gui.ps1 -SafeMode` 让**本次运行**忽略全部插件，`projectme.config.json` 不会被改写；管理器的「以安全模式启动」就是替你带上这个开关。需要持久关闭时用「全部禁用」。
 
 ### 插件清单 `plugin.json`
 
@@ -230,7 +254,7 @@ GUI 插件需要先在 `ProjectMe.Gui.xaml` 里预置自己要用的控件，并
 ## 仓库
 
 - 仓库名称：`ProjectMe`；已执行 `git init`，尚未配置远程地址，需要发布时再 `git remote add origin <仓库地址>`。
-- 当前版本：`v1.1.8`；本项目不提供自动"更新版本"功能，版本号由维护者手动维护，用户侧用 `Update-ProjectMe.ps1` 应用新包体。
+- 当前版本：`v1.1.9`；本项目不提供自动"更新版本"功能，版本号由维护者手动维护，用户侧用 `Update-ProjectMe.ps1` 应用新包体。
 - 示例文章只有"ProjectMe 是什么"和"ProjectMe 更新日志"两篇，后者直接引用根目录的 `CHANGELOG.md`。
 - `logs/`、`old/` 与 `.projectme-serve.json` 是本地运行产物，已在 `.gitignore` 中排除。
 

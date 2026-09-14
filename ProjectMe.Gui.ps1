@@ -1,4 +1,9 @@
-﻿try {
+﻿[CmdletBinding()]
+param(
+  [switch]$SafeMode
+)
+
+try {
   $ErrorActionPreference = 'Stop'
   $root = Split-Path -Parent $MyInvocation.MyCommand.Path
   . (Join-Path $root 'ProjectMe.Common.ps1')
@@ -10,6 +15,11 @@
 
   $script:info = Get-ProjectInfo $root
   $script:config = Get-ProjectConfig $root
+  $script:safeMode = [bool]$SafeMode
+  if ($script:safeMode) {
+    foreach ($key in @($script:config.plugins.Keys)) { $script:config.plugins[$key] = [pscustomobject]@{ enabled = $false } }
+    Write-ProjectLog '安全模式：本次运行已忽略全部插件' 'INFO' $root
+  }
   $script:articles = @()
   $script:visibleArticles = @()
   $script:selectedArticle = $null
@@ -243,6 +253,15 @@
 
   function Remove-TimelineEntryFromGui { if ($null -eq $script:selectedTimelineEntry) { Show-Error '请先选择一个时间轴条目。'; return }; $entry = $script:timelineEntries | Where-Object { $_.slug -eq $script:selectedTimelineEntry.slug } | Select-Object -First 1; if ($entry) { $entry.disabled = $true; Save-Timeline ([pscustomobject]@{ entries = @($script:timelineEntries) }) $root; Refresh-Timeline; Show-Message '时间轴条目已禁用。' } }
 
+  function Start-PluginManagerFromGui {
+    $hostCommand = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source
+    if (-not $hostCommand) { $hostCommand = (Get-Command powershell.exe -ErrorAction SilentlyContinue).Source }
+    if (-not $hostCommand) { throw '找不到 PowerShell 启动程序，无法打开插件管理器。' }
+    Start-Process $hostCommand -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $root 'Manage-Plugins.ps1')) -WindowStyle Normal
+    Write-ProjectLog 'WPF GUI 打开插件管理器' 'INFO' $root
+    Show-Message '插件管理器已在新窗口中打开。`n修改插件状态后，请重启本窗口使其生效。' '插件管理器'
+  }
+
   function Run-ProjectCheck { try { $result = & (Join-Path $root 'Check-ProjectMe.ps1') 2>&1 | Out-String; Show-TextDialog '项目自检' $result '关闭' | Out-Null } catch { Show-Error $_.Exception.Message '项目自检失败' } }
   function Open-Log { $log = Join-Path $root 'logs\projectme-cli.log'; if (Test-Path $log) { Start-Process notepad.exe $log } else { Show-Message '目前还没有日志。' } }
 
@@ -250,12 +269,12 @@
   function Rollback-VersionFromGui { $snapshot = (Get-Control 'SnapshotGrid').SelectedItem; if ($null -eq $snapshot) { Show-Error '请先加载并选择一个快照。'; return }; if ([System.Windows.MessageBox]::Show($script:window,"确认回滚到：$($snapshot.Name)？`n当前项目会先备份到 old\reseted\。",'回滚版本','YesNo','Warning') -ne 'Yes') { return }; try { $backup = Restore-ProjectSnapshot -Root $root -Snapshot $snapshot.FullName; Write-ProjectLog "WPF GUI 回滚成功：$($snapshot.FullName)；备份：$backup" 'INFO' $root; Show-Message "回滚完成。`n回滚前备份：$backup`n`n请关闭并重新启动 ProjectMe。" } catch { Write-ProjectLog "WPF GUI 回滚失败：$($_.Exception.Message)`n$($_.ScriptStackTrace)" 'ERROR' $root; Show-Error $_.Exception.Message '回滚失败' } }
 
   $xamlPath = Join-Path $root 'ProjectMe.Gui.xaml'; $xamlText = [IO.File]::ReadAllText($xamlPath,[Text.UTF8Encoding]::new($true)); $reader = New-Object Xml.XmlNodeReader ([xml]$xamlText); $script:window = [Windows.Markup.XamlReader]::Load($reader); Set-Theme; Set-Fonts
-  $script:window.Title = "$($script:info.title) · $(Get-DisplayVersion $script:info)"; (Get-Control 'SidebarVersionText').Text = Get-DisplayVersion $script:info; (Get-Control 'HeaderSubtitleText').Text = "$($script:info.description) · Windows WPF 管理器"; (Get-Control 'PortBox').Text = [string]$script:config.serve.port; (Get-Control 'MaintenancePortBox').Text = [string]$script:config.serve.port; (Get-Control 'ServiceStatusText').Text = '预览未运行'; (Get-Control 'MaintenanceServiceText').Text = '预览未运行'; (Get-Control 'CurrentVersionText').Text = "当前版本：$(Get-DisplayVersion $script:info)"
+  $script:window.Title = "$($script:info.title) · $(Get-DisplayVersion $script:info)$(if ($script:safeMode) { ' · 安全模式' })"; (Get-Control 'SidebarVersionText').Text = Get-DisplayVersion $script:info; (Get-Control 'HeaderSubtitleText').Text = "$($script:info.description) · Windows WPF 管理器"; (Get-Control 'PortBox').Text = [string]$script:config.serve.port; (Get-Control 'MaintenancePortBox').Text = [string]$script:config.serve.port; (Get-Control 'ServiceStatusText').Text = '预览未运行'; (Get-Control 'MaintenanceServiceText').Text = '预览未运行'; (Get-Control 'CurrentVersionText').Text = "当前版本：$(Get-DisplayVersion $script:info)"
 
   (Get-Control 'ArticlesNavButton').Add_Click({ Set-Page articles }); (Get-Control 'MaintenanceNavButton').Add_Click({ Set-Page maintenance }); (Get-Control 'TimelineNavButton').Add_Click({ Set-Page timeline }); (Get-Control 'AboutNavButton').Add_Click({ Show-AboutDialog })
   (Get-Control 'ArticleGrid').Add_Sorting({ param($sender, $eventArgs) $propertyName = [string]$eventArgs.Column.SortMemberPath; if (-not $propertyName) { $eventArgs.Handled = $true; return }; if ($script:articleSortProperty -ne $propertyName) { $script:articleSortProperty = $propertyName; $script:articleSortAscending = $true } elseif ($script:articleSortAscending) { $script:articleSortAscending = $false } else { $script:articleSortProperty = ''; $script:articleSortAscending = $true }; $eventArgs.Handled = $true; Refresh-Articles }); (Get-Control 'SearchBox').Add_TextChanged({ Refresh-Articles }); (Get-Control 'ArticleGrid').Add_SelectionChanged({ Load-SelectedArticle }); (Get-Control 'RefreshButton').Add_Click({ Refresh-Articles }); (Get-Control 'NewArticleButton').Add_Click({ New-ArticleFromGui }); (Get-Control 'SaveArticleButton').Add_Click({ try { Save-SelectedArticle } catch { Show-Error $_.Exception.Message } }); (Get-Control 'OpenArticleButton').Add_Click({ if ($script:selectedArticle) { $target = if ($script:selectedArticle.path) { Join-Path $root ([string]$script:selectedArticle.path) } else { Join-Path $root "articles\$($script:selectedArticle.file)" }; Start-Process notepad.exe $target } }); (Get-Control 'DeleteArticleButton').Add_Click({ Delete-SelectedArticleFromGui })
   (Get-Control 'StartPreviewButton').Add_Click({ try { Start-Preview } catch { Show-Error $_.Exception.Message '启动预览失败' } }); (Get-Control 'StopPreviewButton').Add_Click({ Stop-Preview }); (Get-Control 'OpenSiteButton').Add_Click({ Start-Process "http://localhost:$((Get-Control 'PortBox').Text)/" }); (Get-Control 'CheckButton').Add_Click({ Run-ProjectCheck }); (Get-Control 'LogButton').Add_Click({ Open-Log })
-  (Get-Control 'MaintenanceStartButton').Add_Click({ try { Start-Preview (Get-Control 'MaintenancePortBox') } catch { Show-Error $_.Exception.Message '启动预览失败' } }); (Get-Control 'MaintenanceStopButton').Add_Click({ Stop-Preview }); (Get-Control 'MaintenanceForceStopButton').Add_Click({ if ([System.Windows.MessageBox]::Show($script:window,'会强制停止占用端口号4173、4174的进程','强停所有预览','YesNo','Warning') -eq 'Yes') { Stop-Preview; Show-Message '已强制停止 4173、4174 端口上的预览进程。' '强停所有预览' } }); (Get-Control 'MaintenanceOpenSiteButton').Add_Click({ Start-Process "http://localhost:$((Get-Control 'MaintenancePortBox').Text)/" }); (Get-Control 'MaintenanceCheckButton').Add_Click({ Run-ProjectCheck }); (Get-Control 'MaintenanceLogButton').Add_Click({ Open-Log }); (Get-Control 'LoadSnapshotsButton').Add_Click({ Load-SnapshotsFromGui }); (Get-Control 'RollbackButton').Add_Click({ Rollback-VersionFromGui })
+  (Get-Control 'MaintenanceStartButton').Add_Click({ try { Start-Preview (Get-Control 'MaintenancePortBox') } catch { Show-Error $_.Exception.Message '启动预览失败' } }); (Get-Control 'MaintenanceStopButton').Add_Click({ Stop-Preview }); (Get-Control 'MaintenanceForceStopButton').Add_Click({ if ([System.Windows.MessageBox]::Show($script:window,'会强制停止占用端口号4173、4174的进程','强停所有预览','YesNo','Warning') -eq 'Yes') { Stop-Preview; Show-Message '已强制停止 4173、4174 端口上的预览进程。' '强停所有预览' } }); (Get-Control 'MaintenanceOpenSiteButton').Add_Click({ Start-Process "http://localhost:$((Get-Control 'MaintenancePortBox').Text)/" }); (Get-Control 'MaintenanceCheckButton').Add_Click({ Run-ProjectCheck }); (Get-Control 'MaintenanceLogButton').Add_Click({ Open-Log }); (Get-Control 'PluginManagerButton').Add_Click({ try { Start-PluginManagerFromGui } catch { Show-Error $_.Exception.Message '打开插件管理器失败' } }); (Get-Control 'LoadSnapshotsButton').Add_Click({ Load-SnapshotsFromGui }); (Get-Control 'RollbackButton').Add_Click({ Rollback-VersionFromGui })
   (Get-Control 'TimelineSearchBox').Add_TextChanged({ Refresh-Timeline }); (Get-Control 'TimelineRefreshButton').Add_Click({ Refresh-Timeline }); (Get-Control 'TimelineGrid').Add_SelectionChanged({ Load-TimelineEntry }); (Get-Control 'TimelineSelectButton').Add_Click({ Select-TimelineArticle }); (Get-Control 'TimelineChooseArticleButton').Add_Click({ Select-TimelineArticle }); (Get-Control 'TimelineSaveButton').Add_Click({ try { Save-TimelineEntryFromGui } catch { Show-Error $_.Exception.Message } }); (Get-Control 'TimelineRemoveButton').Add_Click({ Remove-TimelineEntryFromGui })
   # --- 插件宿主 ---
   # 插件在 plugins\<插件名>\plugin.json 中声明自己占用的 GUI 控件；这些控件在 XAML 中默认隐藏，
