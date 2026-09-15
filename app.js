@@ -1,6 +1,6 @@
 const app = document.querySelector('#app');
 let articles = [];
-let projectInfo = { name: 'ProjectMe', version: '1.1.10', generation: 1, author: 'tianyimc.com', authorUrl: 'https://tianyimc.com', copyright: '© 2026 tianyimc.com 依据 MIT 许可证开放源代码', license: 'MIT', licenseName: 'MIT 许可证', licenseUrl: 'https://opensource.org/license/mit', description: '一个无后端依赖的文集项目：网页负责阅读，CLI 与 WPF GUI 负责维护。', title: 'ProjectMe · 个人文集' };
+let projectInfo = { name: 'ProjectMe', version: '1.1.10', generation: 2, author: 'tianyimc.com', authorUrl: 'https://tianyimc.com', copyright: '© 2026 tianyimc.com 依据 MIT 许可证开放源代码', license: 'MIT', licenseName: 'MIT 许可证', licenseUrl: 'https://opensource.org/license/mit', description: '一个无后端依赖的文集项目：网页负责阅读，CLI 与 WPF GUI 负责维护。', title: 'ProjectMe · 个人文集' };
 
 function renderHome() {
   const orderedArticles = [...articles].sort((a, b) => (b.order ?? -1) - (a.order ?? -1));

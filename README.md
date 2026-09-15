@@ -2,7 +2,7 @@
 
 > 一个无后端依赖的个人文集：网页负责阅读，CLI 和 GUI 负责维护。
 
-当前版本：**v1.1.10** · 作者：[tianyimc.com](https://tianyimc.com)
+当前版本：**v1.1.10 Gen2** · 作者：[tianyimc.com](https://tianyimc.com)
 
 仓库名称：**ProjectMe** · 许可证：**MIT**（详见 [`LICENSE`](LICENSE)）
 
@@ -90,7 +90,7 @@ ProjectMe 支持插件，但**本版本不随包提供任何插件**。“从 Ob
 | `ProjectMe.Gui.ps1` / `ProjectMe.Gui.xaml` | WPF GUI 窗口管理器 |
 | `ProjectMe.Gui.WinForms.ps1` | 旧版隐藏回退 GUI |
 | `ProjectMe.Common.ps1` | CLI、GUI 共用函数与插件宿主 API |
-| `Update-ProjectMe.ps1` | 无损更新器：把新版本包体应用到当前安装 |
+| `Update-ProjectMe.ps1` | 无损更新器：把新版本包体应用到当前安装；自带所需函数，可直接在旧版本目录里运行 |
 | `plugins/` | 插件目录（安装插件时自动创建），每个插件一个文件夹，配置在插件自己的 `config.json` 里；`plugins\*.zip` 是待安装插件包 |
 | `Manage-Plugins.ps1` | 插件管理器：安装 / 启用 / 禁用 / 卸载插件，支持安全模式 |
 | `project-info.json` | 名称、版本、作者等项目元数据 |
@@ -216,8 +216,18 @@ GUI 插件需要先在 `ProjectMe.Gui.xaml` 里预置自己要用的控件，并
 下载新版本的完整包体（zip，或已解压的目录）后，在旧版安装目录运行一次更新器即可，**不需要手动解压覆盖，也不会碰你的文章**：
 
 ```powershell
-.\Update-ProjectMe.ps1 -Package .\ProjectMe-v1.1.10.zip
+.\Update-ProjectMe.ps1 -Package .\ProjectMe-v1.1.10-Gen2.zip
 ```
+
+更新器**自带全部所需函数，不加载安装目录里的 `ProjectMe.Common.ps1`**：它运行在旧版本上，而旧版本的公共脚本往往缺少新函数或新参数，依赖它会让更新直接失败。因此无论从多老的版本升级（包括 v1.1.6 这类早于更新器的版本），都能直接运行。
+
+安装目录按以下顺序确定，运行时会先打印「安装目录」与「包体路径」供核对：
+
+1. `-ProjectRoot <目录>` 指定的目录；
+2. 当前工作目录（如果它看起来是 ProjectMe 安装目录，即同时有 `project-info.json` 和 `ProjectMe.ps1`）；
+3. 更新器脚本所在目录。
+
+路径写错时会打印当前工作目录，并把在安装目录 / 当前目录 / 脚本目录里找到的 `ProjectMe-*.zip` 列出来供核对，而不是只说一句“找不到包体”。
 
 更新器会先打印计划（新增 / 更新 / 跳过各多少、具体是哪些文件），确认后才开始写入：
 
@@ -249,7 +259,7 @@ GUI 插件需要先在 `ProjectMe.Gui.xaml` 里预置自己要用的控件，并
 ## 仓库
 
 - 仓库名称：`ProjectMe`；已执行 `git init`，尚未配置远程地址，需要发布时再 `git remote add origin <仓库地址>`。
-- 当前版本：`v1.1.10`；本项目不提供自动"更新版本"功能，版本号由维护者手动维护，用户侧用 `Update-ProjectMe.ps1` 应用新包体。
+- 当前版本：`v1.1.10 Gen2`；本项目不提供自动"更新版本"功能，版本号由维护者手动维护，用户侧用 `Update-ProjectMe.ps1` 应用新包体。
 - 示例文章只有"ProjectMe 是什么"和"ProjectMe 更新日志"两篇，后者直接引用根目录的 `CHANGELOG.md`。
 - `logs/`、`old/` 与 `.projectme-serve.json` 是本地运行产物，已在 `.gitignore` 中排除。
 

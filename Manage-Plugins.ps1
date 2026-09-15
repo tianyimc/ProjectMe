@@ -37,7 +37,27 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) { $ProjectRoot = $PSScriptRoot }
 if ([string]::IsNullOrWhiteSpace($ProjectRoot)) { $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path }
 $root = [IO.Path]::GetFullPath($ProjectRoot).TrimEnd('\', '/')
 if (-not (Test-Path (Join-Path $root 'ProjectMe.ps1') -PathType Leaf)) { throw "这不是一个 ProjectMe 安装目录：$root" }
-. (Join-Path $root 'ProjectMe.Common.ps1')
+$commonPath = Join-Path $root 'ProjectMe.Common.ps1'
+if (-not (Test-Path $commonPath -PathType Leaf)) { throw "安装目录缺少 ProjectMe.Common.ps1：$commonPath" }
+
+# 管理器要用到同一版本的插件宿主 API。这里先“只读地”检查公共脚本，不执行旧代码，
+# 就能在安装目录过旧时给出可执行的提示，而不是让用户面对一堆难以理解的报错：
+#   * 旧版本的 Common 可能根本无法解析（早期版本含中文的 .ps1 没有保存为带 BOM 的 UTF-8，
+#     Windows PowerShell 5.1 会按系统代码页解码，脚本直接是语法错误）；
+#   * 也可能能解析但缺少插件宿主 API（例如 v1.1.6 没有 Get-ProjectPlugins）。
+$commonTokens = $null
+$commonParseErrors = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile($commonPath, [ref]$commonTokens, [ref]$commonParseErrors)
+if ($commonParseErrors.Count -gt 0) {
+  throw ("插件管理器无法加载 {0}：该文件有 {1} 处解析错误（旧版本常见原因是含中文的 .ps1 未保存为带 BOM 的 UTF-8）。请先在该目录运行 Update-ProjectMe.ps1 更新项目。" -f $commonPath, $commonParseErrors.Count)
+}
+$commonText = Get-Content -Raw -Encoding UTF8 $commonPath
+$requiredCommonFunctions = @('Get-ProjectPlugins', 'Get-ProjectPluginConfig', 'Set-ProjectPluginEnabled', 'Test-ProjectPluginManifest', 'Test-ProjectSafeZipEntry', 'Write-ProjectJsonAtomic', 'Write-ProjectLog')
+$missingCommonFunctions = @($requiredCommonFunctions | Where-Object { $commonText -notmatch ('function\s+' + [regex]::Escape($_) + '\b') })
+if ($missingCommonFunctions.Count -gt 0) {
+  throw ("插件管理器需要与主程序同版本：{0} 里的 ProjectMe.Common.ps1 缺少 {1}。请先在该目录运行 Update-ProjectMe.ps1 更新项目，或用 -ProjectRoot 指向已更新的安装目录。" -f $root, ($missingCommonFunctions -join '、'))
+}
+. $commonPath
 
 $pluginsDirectory = Join-Path $root 'plugins'
 $removedDirectory = Join-Path $root 'old\removed-plugins'
