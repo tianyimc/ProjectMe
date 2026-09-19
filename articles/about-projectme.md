@@ -40,19 +40,33 @@ ProjectMe 的全部状态都由这几个可读文件描述：
 
 ## 快速开始
 
-启动 GUI：
+### 首次下载后：先解除 Windows 的下载阻止
+
+从浏览器下载的包解压后，Windows 会给 `.ps1` 文件打上「来自 Internet」的标记，直接运行会报 `… cannot be loaded because running scripts is disabled on this system` 或 `… cannot be loaded.`。
+
+**双击根目录的 `Start-ProjectMe.bat` 一次即可**：它会解除本目录（含 `plugins\`）所有 `.ps1` 的阻止，然后按任意键退出。它只做许可、不做撤销——停用或卸载插件都不会把许可收回；更新程序与插件管理器也会各自在需要时自动调用它，所以之后正常使用即可，不必每次启动都跑。
+
+不想用 `.bat` 的话，手动等价命令是：
+
+```powershell
+Get-ChildItem -Path . -Filter *.ps1 -Recurse | Unblock-File
+```
+
+用 `git clone` 拉下来的仓库没有这个标记，不需要处理。
+
+### 启动 GUI
 
 ```powershell
 .\ProjectMe.Gui.ps1
 ```
 
-启动 CLI：
+### 启动 CLI
 
 ```powershell
 .\ProjectMe.ps1
 ```
 
-预览网页：
+### 预览网页
 
 ```powershell
 .\serve.ps1
@@ -94,6 +108,8 @@ ProjectMe 的全部状态都由这几个可读文件描述：
 ## 关于这个仓库
 
 仓库名称为 `ProjectMe`。正文的示例文章只有本介绍和"ProjectMe 更新日志"两篇，后者直接引用仓库根目录的 [`CHANGELOG.md`](CHANGELOG.md)，因此更新日志始终只有一份。
+
+当前版本：**v1.1.11 Gen2**（`project-info.json` 里的 `version` 与 `generation`，Gen1 不显示后缀），完整版本历史见"ProjectMe 更新日志"一文。
 
 本项目不提供自动"更新版本"能力：版本号由维护者手动维护，避免工具在读者机器上生成项目快照；版本回滚仍然保留。
 
