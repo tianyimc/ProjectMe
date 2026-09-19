@@ -1,5 +1,13 @@
 # ProjectMe 更新日志
 
+## v1.1.11 Gen2 - 2026-09-19
+- **新增 `Start-ProjectMe.bat`：解除 Windows 的「来自 Internet」下载阻止。** 从浏览器下载的包解压后，Windows 会给 `.ps1` 打上 `Zone.Identifier` 标记，此时脚本在 `RemoteSigned` 与 `Restricted` 下都会被拒（`… cannot be loaded`）。该脚本递归对本目录（含 `plugins\`）的 `.ps1` 执行 `Unblock-File` 并打印一行结果，然后停在「按任意键」界面。**只做许可、不做撤销**：停用或卸载插件都不会把许可收回，脚本里也没有任何 Block/撤销逻辑。
+- 三个使用时机：① 首次下载后由用户双击一次；② `Update-ProjectMe.ps1` 应用包体成功后自动调用一次；③ `Manage-Plugins.ps1` 安装或启用插件后自动调用一次（禁用/卸载不调用）。后两者用直接调用批处理的方式运行，**复用当前控制台、不弹出新的控制台窗口**（实测：调用前后可见控制台窗口数不变）。
+- **兼容性结论（实测）**：升级与装插件产生的文件是本地复制写入的，`Copy-Item` / `WriteAllText` / `Expand-Archive` 都不会带上下载标记，所以解锁是**保险性**措施，用户"只在首次下载/更新/装插件时跑一次"即可，不需要每次启动都跑；`.bat` 不存在时（例如很旧的安装目录）两个调用方都静默跳过。已知边界：被组策略（MachinePolicy/UserPolicy）或 SRP/AppLocker 强制拦截时，`Unblock-File` 与 `-ExecutionPolicy Bypass` 都可能无效。
+- **发布包命名**：`New-Release.ps1` 从本版起在 Gen2 及以上把 `Gen<X>` 写进包名与包内顶层目录（`ProjectMe-v1.1.11Gen2.zip`），因此与 Gen1 的 `ProjectMe-v1.1.11.zip` **并存、不再互相覆盖**；Gen1（`generation` 为 1 或缺省）仍是不带后缀的 `ProjectMe-v<版本>.zip`。
+- `README.md`「快速开始」新增第一项说明该阻止现象与双击解决方式，「升级」章节补充"更新后无需再手动解锁"，并同步版本规则里的包名规则。
+- 版本号提升到 v1.1.11 Gen2（同一个 `C` 内部的第二个修复包）。
+
 ## v1.1.11 - 2026-09-19
 - **默认附带插件「从 Markdown 拆分导入」**（id `markdown-split-import`，v1.1.0）：把任意 Markdown 文集目录按文件或 Markdown 标题层级拆分成文章后导入项目。发布包在 `plugins\markdown-split-import.zip` 里附带它，装好后默认禁用，启用命令见 `README.md` 的「从 Markdown 拆分导入（插件）」；导入源始终只读，插件设置保存在它自己的 `plugins\markdown-split-import\config.json`（属用户数据，不随包分发）。
 - **插件兼容适配（宿主侧）**：`ProjectMe.Gui.xaml` 新增 `CheckBox` / `ComboBox` / `ComboBoxItem` 三个隐式样式，用自绘 `ControlTemplate` 替换 WPF 里写死浅色系统画刷的默认模板。此前插件通过 `gui.panel` 声明的 `checkbox` / `combo` 控件在深色主题下是白底浅字（悬停态与下拉列表同样是白底，控件实例上设 `Background` 也盖不住），现在背景、边框、前景、箭头、悬停与选中态全部走 `DynamicResource` 引用当前调色板，浅色主题同样正常。

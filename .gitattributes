@@ -1,0 +1,6 @@
+# 行尾策略
+#
+# 批处理按字节解释换行：如果 LF 与 CRLF 被 git 转换，`goto :label`、多行 if 之类的
+# 语法会直接解析失败。Start-ProjectMe.bat 里的中文是 GBK 编码，更不能让 git 碰它的字节，
+# 因此把它标记为二进制（-text）：入库与检出都原样保留 CRLF + GBK。
+Start-ProjectMe.bat -text

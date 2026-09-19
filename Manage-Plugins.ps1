@@ -65,6 +65,30 @@ $removedDirectory = Join-Path $root 'old\removed-plugins'
 function Clear-PluginScreen { try { Clear-Host } catch { } }
 function Pause-PluginMenu { [void](Read-Host '按 Enter 继续') }
 
+# 插件文件是从网上下载的插件包里解出来的，Windows 可能给它们打上「来自 Internet」的阻止标记；
+# 一旦带上这个标记，宿主 dot-source 插件入口时会直接被拒（RemoteSigned/Restricted 都拦）。
+# 因此安装或启用插件后调用一次根目录的 Start-ProjectMe.bat 解除阻止。
+# 只做许可、不做撤销：禁用或卸载插件都不会把标记加回去。
+function Invoke-PluginScriptUnblock {
+  $launcher = Join-Path $root 'Start-ProjectMe.bat'
+  if (-not (Test-Path -LiteralPath $launcher -PathType Leaf)) { return }
+  try {
+    # 直接调用批处理即可：它在本进程已有的控制台里运行，不会弹出新的控制台窗口
+    $null = & $launcher
+    $code = $LASTEXITCODE
+    if ($code -eq 0) {
+      Write-Host '已解除插件脚本的下载阻止（Start-ProjectMe.bat）。' -ForegroundColor DarkGray
+      Write-ProjectLog '已调用 Start-ProjectMe.bat 解除插件脚本的下载阻止。' 'INFO' $root
+    } else {
+      Write-Host "解除下载阻止失败（Start-ProjectMe.bat 退出码 $code），插件可能无法加载。" -ForegroundColor Yellow
+      Write-ProjectLog "调用 Start-ProjectMe.bat 失败，退出码 $code。" 'WARN' $root
+    }
+  } catch {
+    Write-Host "解除下载阻止失败：$($_.Exception.Message)" -ForegroundColor Yellow
+    Write-ProjectLog ("调用 Start-ProjectMe.bat 失败：{0}`n{1}" -f $_.Exception.Message, $_.ScriptStackTrace) 'WARN' $root
+  }
+}
+
 function Get-ZipPluginInfo {
   param([Parameter(Mandatory)][string]$ZipPath)
   $info = [pscustomobject]@{ Id = ''; Name = ''; Version = ''; Prefix = ''; Problem = '' }
@@ -309,6 +333,7 @@ function Install-PluginPackage {
     } else {
       Write-Host '当前开关状态：已禁用；用 -Enable 或菜单「启用插件」打开它。' -ForegroundColor DarkGray
     }
+    Invoke-PluginScriptUnblock
     return $true
   } finally {
     if ($stagingRoot -and (Test-Path $stagingRoot -PathType Container)) { Remove-Item -LiteralPath $stagingRoot -Recurse -Force -ErrorAction SilentlyContinue }
@@ -326,6 +351,8 @@ function Set-PluginEnabledState {
   Set-ProjectPluginEnabled -Id $Id -Enabled $Enabled -Root $root
   Write-ProjectLog ("已{0}插件：{1}" -f $(if ($Enabled) { '启用' } else { '禁用' }), $Id) 'INFO' $root
   Write-Host ("已{0}插件：{1}" -f $(if ($Enabled) { '启用' } else { '禁用' }), $Id) -ForegroundColor Green
+  # 启用后确认一次插件脚本已获得运行许可；禁用时不撤销（只许可、不撤销）
+  if ($Enabled) { Invoke-PluginScriptUnblock }
   return $true
 }
 

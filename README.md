@@ -2,7 +2,7 @@
 
 > 一个无后端依赖的个人文集：网页负责阅读，CLI 和 GUI 负责维护。
 
-当前版本：**v1.1.11** · 作者：[tianyimc.com](https://tianyimc.com)
+当前版本：**v1.1.11 Gen2** · 作者：[tianyimc.com](https://tianyimc.com)
 
 仓库名称：**ProjectMe** · 许可证：**MIT**（详见 [`LICENSE`](LICENSE)）
 
@@ -18,6 +18,20 @@ ProjectMe 将文章正文、文章索引和管理工具放在同一个项目目�
 项目不需要数据库、构建工具或第三方运行库。Windows 用户需要 Windows PowerShell 5.1 或 PowerShell 7；网页部署本身只需要静态文件托管。
 
 ## 快速开始
+
+### 首次下载后：先解除 Windows 的下载阻止
+
+从浏览器下载的包解压后，Windows 会给 `.ps1` 文件打上「来自 Internet」的标记，直接运行会报 `… cannot be loaded because running scripts is disabled on this system` 或 `… cannot be loaded.`。
+
+**双击根目录的 `Start-ProjectMe.bat` 一次即可**：它会解除本目录（含 `plugins\`）所有 `.ps1` 的阻止，然后按任意键退出。它只做许可、不做撤销——停用或卸载插件都不会把许可收回；更新程序与插件管理器也会各自在需要时自动调用它，所以之后正常使用即可，不必每次启动都跑。
+
+不想用 `.bat` 的话，手动等价命令是：
+
+```powershell
+Get-ChildItem -Path . -Filter *.ps1 -Recurse | Unblock-File
+```
+
+用 `git clone` 拉下来的仓库没有这个标记，不需要处理。
 
 ### 启动 GUI
 
@@ -101,7 +115,8 @@ ProjectMe 支持插件，且**本版本随包附带一个插件包**（`plugins\
 | `ProjectMe.Common.ps1` | CLI、GUI 共用函数与插件宿主 API |
 | `Update-ProjectMe.ps1` | 无损更新器：把新版本包体应用到当前安装；自带所需函数，可直接在旧版本目录里运行 |
 | `plugins/` | 插件目录（安装插件时自动创建），每个插件一个文件夹，配置在插件自己的 `config.json` 里；`plugins\*.zip` 是待安装插件包 |
-| `Manage-Plugins.ps1` | 插件管理器：安装 / 启用 / 禁用 / 卸载插件，支持安全模式 |
+| `Manage-Plugins.ps1` | 插件管理器：安装 / 启用 / 禁用 / 卸载插件，支持安全模式；安装或启用后自动调用 `Start-ProjectMe.bat` 解除插件脚本的下载阻止 |
+| `Start-ProjectMe.bat` | 解除「来自 Internet」阻止：递归对本目录（含 `plugins\`）的 `.ps1` 执行 `Unblock-File`，只许可不撤销；首次下载后双击一次，更新器与插件管理器也会自动调用 |
 | `New-Release.ps1` | 维护者的打包脚本：按 `project-info.json` 的版本生成发布包，并附带 `plugins\` 下的插件包 |
 | `project-info.json` | 名称、版本、作者等项目元数据 |
 | `projectme.config.json` | 端口、文章列表和新文章默认配置 |
@@ -127,6 +142,7 @@ ProjectMe 支持插件，且**本版本随包附带一个插件包**（`plugins\
 - `GenX`：**同一个 `C` 小版本内部**更小的修复快照（补丁位），只增不减。
 - 【硬性】**一旦 `C` 提升（例如 `1.1.10 → 1.1.11`），`Gen` 立即重置为 1**——`Gen` 只在 `1.1.11` 内部递增（`Gen1 → Gen2 → Gen3 …`）。不同 `C` 的 `Gen` 互不相干：`1.1.10 Gen3` 的下一版是 `1.1.11`（即 `1.1.11 Gen1`），而不是 `1.1.11 Gen4`。
 - `Gen1` 不显示：`generation` 为 `1` 或缺失时显示 `v1.1.11`，从 `2` 起才显示 `v1.1.11 Gen2`、`v1.1.11 Gen3`。
+- 发布包文件名同样按这个规则：`Gen1` 不带后缀（`ProjectMe-v1.1.11.zip`），`Gen2` 起带 `Gen<X>`（`ProjectMe-v1.1.11Gen2.zip`），因此同一个 `C` 版本的多代包不会互相覆盖。
 
 本项目不提供"更新版本"功能：版本号由维护者手动修改 `project-info.json` 并追加 `CHANGELOG.md` 条目。版本回滚仍然保留：CLI 的 **12. 回滚版本** 或 GUI 的"预览与维护 → 版本管理"会从 `old/` 中的快照恢复项目文件，回滚前自动在 `old/reseted/` 保存当前项目备份。
 
@@ -233,10 +249,12 @@ GUI 插件在清单里用 `gui.panel` 声明自己需要的控件（按钮、输
 下载新版本的完整包体（zip，或已解压的目录）后，在旧版安装目录运行一次更新器即可，**不需要手动解压覆盖，也不会碰你的文章**：
 
 ```powershell
-.\Update-ProjectMe.ps1 -Package .\ProjectMe-v1.1.11.zip
+.\Update-ProjectMe.ps1 -Package .\ProjectMe-v1.1.11Gen2.zip
 ```
 
 更新器**自带全部所需函数，不加载安装目录里的 `ProjectMe.Common.ps1`**：它运行在旧版本上，而旧版本的公共脚本往往缺少新函数或新参数，依赖它会让更新直接失败。因此无论从多老的版本升级（包括 v1.1.6 这类早于更新器的版本），都能直接运行。
+
+> 更新完成后更新器会自动调用一次 `Start-ProjectMe.bat`，把新写入的脚本的下载阻止解除（通常本来就没有这个标记），所以升级后**不需要再手动跑一次解锁**。
 
 安装目录按以下顺序确定，运行时会先打印「安装目录」与「包体路径」供核对：
 
@@ -279,19 +297,20 @@ GUI 插件在清单里用 `gui.panel` 声明自己需要的控件（按钮、输
 维护者用根目录的 `New-Release.ps1` 生成发布包：
 
 ```powershell
-.\New-Release.ps1                        # 生成 .\ProjectMe-v<当前版本>.zip
+.\New-Release.ps1                        # 生成 .\ProjectMe-v<版本>[Gen<X>].zip
 .\New-Release.ps1 -OutputDirectory D:\发布
 .\New-Release.ps1 -NoPlugin              # 只打主程序，不带插件包
 ```
 
 - 版本号取自 `project-info.json`，包内顶层目录与包同名（解压出来就是一个可直接使用的安装目录）；包内文件与仓库根目录一致。
+- **包名规则**：Gen1（或不写 `generation`）是 `ProjectMe-v<版本>.zip`；Gen2 起是 `ProjectMe-v<版本>Gen<X>.zip`，这样同一个 `C` 版本的多代修复包**互不覆盖**（例如 `ProjectMe-v1.1.11.zip` 与 `ProjectMe-v1.1.11Gen2.zip` 并存）。
 - **默认把 `plugins\` 下所有插件包（`*.zip`）一起打进发布包**（本版本附带 `plugins\markdown-split-import.zip`），但不会打包 `plugins\` 下已安装的插件文件夹（那属于用户数据）。
 - 排除本地数据与产物：`old\`、`logs\`、`.git\`、`.projectme-serve.json`、`00Bugs.txt`、已有的 `ProjectMe-v*.zip`，以及打包脚本自身。
 
 ## 仓库
 
 - 仓库名称：`ProjectMe`；已执行 `git init`，尚未配置远程地址，需要发布时再 `git remote add origin <仓库地址>`。
-- 当前版本：`v1.1.11`（`project-info.json` 里 `version` = `1.1.11`、`generation` = `1`，`Gen1` 不显示）；本项目不提供自动"更新版本"功能，版本号由维护者手动维护，用户侧用 `Update-ProjectMe.ps1` 应用新包体。
+- 当前版本：`v1.1.11 Gen2`（`project-info.json` 里 `version` = `1.1.11`、`generation` = `2`）；本项目不提供自动"更新版本"功能，版本号由维护者手动维护，用户侧用 `Update-ProjectMe.ps1` 应用新包体。
 - 示例文章只有"ProjectMe 是什么"和"ProjectMe 更新日志"两篇，后者直接引用根目录的 `CHANGELOG.md`。
 - `logs/`、`old/`、`.projectme-serve.json`、发布包 `ProjectMe-v*.zip` 与插件包 `plugins/*.zip` 都是本地运行 / 发布产物，已在 `.gitignore` 中排除。
 

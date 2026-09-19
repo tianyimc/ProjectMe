@@ -309,6 +309,28 @@ function Test-ProjectKeptPath([string]$Relative, [string[]]$Patterns) {
   return $false
 }
 
+# 调用根目录的 Start-ProjectMe.bat 解除脚本的「来自 Internet」阻止（只许可、不撤销）。
+# 更新器要能在任意旧版本目录里独立运行，所以这里自带实现，不依赖任何宿主函数。
+# 直接调用批处理：它复用当前控制台，不会弹出新的控制台窗口；pause 由当前会话的输入越过。
+function Update-ScriptUnblock {
+  $launcher = Join-Path $root 'Start-ProjectMe.bat'
+  if (-not (Test-Path -LiteralPath $launcher -PathType Leaf)) { return }
+  try {
+    $null = & $launcher
+    $code = $LASTEXITCODE
+    if ($code -eq 0) {
+      Write-Host '已解除新脚本的下载阻止（Start-ProjectMe.bat）。' -ForegroundColor DarkGray
+      Write-UpdateLog '已调用 Start-ProjectMe.bat 解除新脚本的下载阻止。' 'INFO' $root
+    } else {
+      Write-Host "解除下载阻止失败（Start-ProjectMe.bat 退出码 $code）。" -ForegroundColor Yellow
+      Write-UpdateLog "调用 Start-ProjectMe.bat 失败，退出码 $code。" 'WARN' $root
+    }
+  } catch {
+    Write-Host "解除下载阻止失败：$($_.Exception.Message)" -ForegroundColor Yellow
+    Write-UpdateLog ("调用 Start-ProjectMe.bat 失败：{0}`n{1}" -f $_.Exception.Message, $_.ScriptStackTrace) 'WARN' $root
+  }
+}
+
 function Get-ProjectFileHashValue([string]$Path) {
   if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
   return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash
@@ -610,6 +632,11 @@ try {
     }
     throw "更新失败：$($_.Exception.Message)"
   }
+
+  # 新写入的脚本来自包体，Windows 一般不会给它们打「来自 Internet」标记（标记只跟着下载走），
+  # 但为了万无一失（也覆盖"包体本身是从浏览器下下来的"这种情况），更新成功后调用一次
+  # 根目录的 Start-ProjectMe.bat 解除阻止。只做许可、不做撤销；批处理不存在就跳过。
+  Update-ScriptUnblock
 
   # --- 6. 汇总 ---
   $stale = @()

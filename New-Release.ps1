@@ -6,10 +6,11 @@
 #   .\New-Release.ps1 -NoPlugin        # 不带插件包，只打主程序
 #
 # 行为：
-#   * 版本号取自 project-info.json，包名 `ProjectMe-v<版本>.zip`（如果同目录已有同名包，先删掉再生成）；
-#   * zip 内是一个以包名同名的顶层目录（与既有发布包一致），解压后即是一个可直接使用的安装目录；
-#   * 排除本地数据与产物：`old\`、`logs\`、`.git\`、`.gitignore` 以外的仓库产物、`ProjectMe-*.zip`
-#     这些发布包本身、以及临时文件；
+#   * 版本号取自 project-info.json：Gen1 包名 `ProjectMe-v<版本>.zip`，Gen2 起 `ProjectMe-v<版本>Gen<X>.zip`
+#     （同一个 C 版本的多代包互不覆盖；同名包已存在时先删掉再生成）；
+#   * zip 内是一个与包名同名的顶层目录（与既有发布包一致），解压后即是一个可直接使用的安装目录；
+#   * 排除本地数据与产物：`old\`、`logs\`、`.git\`、`ProjectMe-*.zip` 这些发布包本身、
+#     `_` 开头的临时/验证脚本，以及打包脚本自身；
 #   * 默认把 `plugins\` 下**所有**插件包（`*.zip`）一起打进发布包（本版本附带 `markdown-split-import.zip`）；
 #     不会打包 `plugins\` 下已安装的插件文件夹（那属于用户数据）。
 
@@ -32,7 +33,10 @@ if (-not (Test-Path $infoPath -PathType Leaf)) { throw "找不到 project-info.j
 $info = [System.IO.File]::ReadAllText($infoPath, [System.Text.UTF8Encoding]::new($false)) | ConvertFrom-Json
 $version = [string]$info.version
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "project-info.json 里的版本号无效：$version" }
-$baseName = "ProjectMe-v$version"
+# 包名规则：Gen1（或不写 generation）不加后缀；Gen2 起加 Gen<X>，
+# 这样同一个 C 版本的多代修复包不会互相覆盖（例如 ProjectMe-v1.1.11.zip 与 ProjectMe-v1.1.11Gen2.zip 并存）。
+$generation = if ($null -ne $info.PSObject.Properties['generation'] -and [int]$info.generation -gt 0) { [int]$info.generation } else { 1 }
+$baseName = if ($generation -le 1) { "ProjectMe-v$version" } else { "ProjectMe-v${version}Gen$generation" }
 $zipPath = Join-Path $OutputDirectory "$baseName.zip"
 
 # 顶层目录名 = 包名（去掉 .zip），解压出来就是安装目录
@@ -51,6 +55,7 @@ try {
     if ($excludeFiles -contains $item.Name) { continue }
     if (-not $item.PSIsContainer -and $item.Name -like 'ProjectMe-v*.zip') { continue }
     if ($item.Name -like '.projectme-delete-*.tmp') { continue }
+    if ($item.Name -like '_*') { continue }              # 下划线开头的临时/验证脚本不进发布包
     if ($item.Name -eq 'New-Release.ps1') { continue }   # 打包脚本本身不进发布包
     $destination = Join-Path $stagingRoot $item.Name
     if ($item.PSIsContainer) {
