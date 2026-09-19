@@ -138,9 +138,86 @@ function Test-ProjectPluginManifest {
     if ([string]::IsNullOrWhiteSpace([string]$Manifest.cli.function)) { return 'cli.function is required' }
   }
   if ($null -ne $Manifest.PSObject.Properties['gui'] -and $null -ne $Manifest.gui) {
-    if ([string]::IsNullOrWhiteSpace([string]$Manifest.gui.function)) { return 'gui.function is required' }
-    $controls = @($Manifest.gui.controls | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
-    if ($controls.Count -eq 0) { return 'gui.controls is required when gui is declared' }
+    if ([string]::IsNullOrWhiteSpace([string]$Manifest.gui.function) -and @(Get-ProjectPluginGuiPanelEntries -Gui $Manifest.gui).Count -eq 0) { return 'gui.function is required' }
+    $panelProblem = Test-ProjectPluginGuiPanel -Gui $Manifest.gui
+    if ($panelProblem) { return $panelProblem }
+  }
+  return ''
+}
+
+# 插件 GUI 控件契约（规范 §7）：
+# 第三方插件不能自己写 XAML，也不能要求维护者为每个插件改 ProjectMe.Gui.xaml。
+# 因此宿主在窗口初始化时，按插件清单里的声明在预留的插件区域“现造”控件：
+#   gui.panel[] = { id, type(button/checkbox/textbox/text/combo), content, page(articles/maintenance/plugin), width }
+# 造好的控件会注册进窗口名称作用域，名字由控件 id 按固定规则生成（如 <id>_button），
+# 插件用 Get-Control '<id>_button' 或更省事的 Get-PluginControl '<id>' 取用。
+# 这套规则对插件可见且跨版本稳定，Check-ProjectMe.ps1 与宿主加载、安装校验共用同一份实现。
+
+function ConvertTo-ProjectPluginGuiKey {
+  # WPF 的 RegisterName/FindName 只接受合法标识符（字母、数字、下划线，不能以数字开头），
+  # 所以这里把任意 id 归一化成下划线形式；'markdown-split-import' 与 'markdown_split_import' 会归一成同一个名字，
+  # 因此规范建议插件 id 与控件 id 直接写成下划线形式，避免歧义。
+  param([string]$Value)
+  $text = ([string]$Value).Trim().ToLowerInvariant()
+  $text = [regex]::Replace($text, '[^a-z0-9]+', '_')
+  $text = $text.Trim('_')
+  if ($text -match '^\d') { $text = 'v' + $text }
+  return $text
+}
+
+function Get-ProjectPluginGuiType {
+  param([string]$Type)
+  switch (([string]$Type).Trim().ToLowerInvariant()) {
+    { $_ -in @('', 'text', 'label', 'textblock') } { return 'text' }
+    { $_ -in @('button', 'btn') } { return 'button' }
+    { $_ -in @('checkbox', 'check', 'bool') } { return 'checkbox' }
+    { $_ -in @('textbox', 'input', 'edit') } { return 'textbox' }
+    { $_ -in @('combo', 'combobox', 'select', 'list') } { return 'combo' }
+    default { return '' }
+  }
+}
+
+function Get-ProjectPluginGuiPanelEntries {
+  param([Parameter(Mandatory)]$Gui)
+  $entries = @()
+  if ($null -eq $Gui.PSObject.Properties['panel'] -or $null -eq $Gui.panel) { return $entries }
+  if ($Gui.panel -is [string]) { return $entries }
+  if ($null -ne $Gui.panel.PSObject.Properties['id']) { return @($Gui.panel) }
+  foreach ($entry in @($Gui.panel)) { if ($null -ne $entry) { $entries += $entry } }
+  return $entries
+}
+
+function Get-ProjectPluginGuiControlName {
+  param([Parameter(Mandatory)][string]$Id, [Parameter(Mandatory)][string]$Type)
+  $key = ConvertTo-ProjectPluginGuiKey $Id
+  if ([string]::IsNullOrWhiteSpace($key)) { throw "插件控件 id 不合法：$Id" }
+  # WPF 的 RegisterName 只接受合法标识符（字母/数字/下划线，且不能以数字开头），
+  # 因此分隔符用下划线：<id>_button / <id>_check / <id>_input / <id>_select / <id>_text
+  switch (Get-ProjectPluginGuiType $Type) {
+    'button' { return "${key}_button" }
+    'checkbox' { return "${key}_check" }
+    'textbox' { return "${key}_input" }
+    'combo' { return "${key}_select" }
+    'text' { return "${key}_text" }
+    default { throw "不支持的插件控件类型：$Type" }
+  }
+}
+
+function Test-ProjectPluginGuiPanel {
+  param([Parameter(Mandatory)]$Gui)
+  $seen = @{}
+  foreach ($entry in @(Get-ProjectPluginGuiPanelEntries -Gui $Gui)) {
+    $id = ConvertTo-ProjectPluginGuiKey ([string]$entry.id)
+    if ([string]::IsNullOrWhiteSpace($id)) { return 'gui.panel 每项都需要非空的 id（只能是字母、数字、-、_）' }
+    if ($seen.ContainsKey($id)) { return "gui.panel 的 id 重复：$id" }
+    $seen[$id] = $true
+    $type = Get-ProjectPluginGuiType ([string]$entry.type)
+    if (-not $type) { return "gui.panel 类型只能是 button / checkbox / textbox / text / combo：$id（type = $($entry.type)）" }
+    if ($type -eq 'button' -and [string]::IsNullOrWhiteSpace([string]$entry.content)) { return "gui.panel 的 button 必须有 content：$id" }
+    if ($null -ne $entry.PSObject.Properties['width']) {
+      $width = 0.0
+      if (-not [double]::TryParse([string]$entry.width, [ref]$width) -or $width -le 0) { return "gui.panel 的 width 必须是大于 0 的数字：$id" }
+    }
   }
   return ''
 }

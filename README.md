@@ -2,7 +2,7 @@
 
 > 一个无后端依赖的个人文集：网页负责阅读，CLI 和 GUI 负责维护。
 
-当前版本：**v1.1.10 Gen2** · 作者：[tianyimc.com](https://tianyimc.com)
+当前版本：**v1.1.11** · 作者：[tianyimc.com](https://tianyimc.com)
 
 仓库名称：**ProjectMe** · 许可证：**MIT**（详见 [`LICENSE`](LICENSE)）
 
@@ -12,7 +12,7 @@ ProjectMe 将文章正文、文章索引和管理工具放在同一个项目目�
 
 - **文集核心**：原生 HTML、CSS、JavaScript 和 Markdown，适合静态托管。
 - **管理核心**：PowerShell CLI，适合批量维护、项目自检和版本回滚。
-- **GUI 管理器**：Windows WPF 工作台，支持浅色/深色系统主题，适合日常搜索、编辑和本地预览。
+- **GUI 管理器**：Windows WPF 工作台，支持浅色/深色系统主题，适合日常搜索、编辑和本地预览；第三方插件可以在宿主预留的插件区域里挂自己的入口（见「插件设计规范」§7）。
 - **数据文件**：`articles.json` 管理文章属性，`articles/` 保存正文，`timeline.json` 管理时间轴。
 
 项目不需要数据库、构建工具或第三方运行库。Windows 用户需要 Windows PowerShell 5.1 或 PowerShell 7；网页部署本身只需要静态文件托管。
@@ -41,7 +41,7 @@ CLI 适合脚本化和完整维护，包含文章列表、属性编辑、删除�
 .\serve.ps1
 ```
 
-然后打开 `http://localhost:4173/`。也可以在 GUI 中启动预览，或在 CLI 的 `serve` 菜单中选择前台/后台模式。
+然后打开 `http://localhost:4173/`。也可以在 GUI 中启动预览，或在 CLI 的 **7. 启动预览** 菜单中选择前台/后台模式。
 
 ## 日常操作
 
@@ -62,9 +62,18 @@ CLI 适合脚本化和完整维护，包含文章列表、属性编辑、删除�
 
 CLI 选择 **3. 删除文章**，或在 WPF GUI 的文章属性区点击“删除文章”。删除文章不会修改插件导入源里的文件。CLI 需要输入包含 `.md` 的完整文件名确认，GUI 需要勾选“确认删除”。为避免项目索引为空，最后一篇文章不能删除。
 
-### 导入 Obsidian（暂不提供）
+### 从 Markdown 拆分导入（插件）
 
-ProjectMe 支持插件，但**本版本不随包提供任何插件**。“从 Obsidian 导入”插件仍在完善中（格式兼容性与拆分规则尚未定型），因此暂不提供，仓库里也不包含它的任何内容。
+ProjectMe 支持插件，且**本版本随包附带一个插件包**（`plugins\markdown-split-import.zip`）；插件代码都在包管理器里安装，主程序本身不内置任何插件。
+
+「从Markdown拆分导入」插件（id `markdown-split-import`）把任意 Markdown 文集目录按文件或 Markdown 标题层级拆分成文章后导入项目。发布包里的 zip 已在 `plugins\` 下，直接安装并启用：
+
+```powershell
+.\Manage-Plugins.ps1 -Install .\plugins\markdown-split-import.zip
+.\Manage-Plugins.ps1 -Enable markdown-split-import
+```
+
+启用后，CLI 菜单出现「从Markdown拆分导入」，GUI 的「预览与维护」页底部出现「插件」卡片；插件设置保存在它自己的 `plugins\markdown-split-import\config.json`（导入源目录等属于每个用户自己的数据，不随包分发）。导入源始终只读。
 
 插件机制本身是可用的：把插件包放进 `plugins\` 并用插件管理器安装即可（见下文「插件」）。
 
@@ -87,12 +96,13 @@ ProjectMe 支持插件，但**本版本不随包提供任何插件**。“从 Ob
 | `articles.json` | 文章目录属性；`file` 指向 `articles/`，可选的 `path` 可引用仓库内其他 Markdown |
 | `timeline.json` | 时间轴条目 |
 | `ProjectMe.ps1` | CLI 管理器 |
-| `ProjectMe.Gui.ps1` / `ProjectMe.Gui.xaml` | WPF GUI 窗口管理器 |
+| `ProjectMe.Gui.ps1` / `ProjectMe.Gui.xaml` | WPF GUI 窗口管理器；XAML 里预留了插件区域（侧栏「插件」项、插件页、维护页与文章页的插件入口区） |
 | `ProjectMe.Gui.WinForms.ps1` | 旧版隐藏回退 GUI |
 | `ProjectMe.Common.ps1` | CLI、GUI 共用函数与插件宿主 API |
 | `Update-ProjectMe.ps1` | 无损更新器：把新版本包体应用到当前安装；自带所需函数，可直接在旧版本目录里运行 |
 | `plugins/` | 插件目录（安装插件时自动创建），每个插件一个文件夹，配置在插件自己的 `config.json` 里；`plugins\*.zip` 是待安装插件包 |
 | `Manage-Plugins.ps1` | 插件管理器：安装 / 启用 / 禁用 / 卸载插件，支持安全模式 |
+| `New-Release.ps1` | 维护者的打包脚本：按 `project-info.json` 的版本生成发布包，并附带 `plugins\` 下的插件包 |
 | `project-info.json` | 名称、版本、作者等项目元数据 |
 | `projectme.config.json` | 端口、文章列表和新文章默认配置 |
 | `LICENSE` | MIT 许可证全文 |
@@ -114,7 +124,9 @@ ProjectMe 支持插件，但**本版本不随包提供任何插件**。“从 Ob
 - `A`：文集网页核心版本。当前为 `1`，只有网页核心发生重大变化时才提升。
 - `B`：重要功能版本。当前 GUI 管理器属于重要更新，因此本次为 `1.1.x`。
 - `C`：普通更新，例如小功能、优化和修复。
-- `GenX`：同一普通版本的 Bug 修复快照。第一版不显示 `Gen1`，第二版开始显示 `Gen2`、`Gen3`。
+- `GenX`：**同一个 `C` 小版本内部**更小的修复快照（补丁位），只增不减。
+- 【硬性】**一旦 `C` 提升（例如 `1.1.10 → 1.1.11`），`Gen` 立即重置为 1**——`Gen` 只在 `1.1.11` 内部递增（`Gen1 → Gen2 → Gen3 …`）。不同 `C` 的 `Gen` 互不相干：`1.1.10 Gen3` 的下一版是 `1.1.11`（即 `1.1.11 Gen1`），而不是 `1.1.11 Gen4`。
+- `Gen1` 不显示：`generation` 为 `1` 或缺失时显示 `v1.1.11`，从 `2` 起才显示 `v1.1.11 Gen2`、`v1.1.11 Gen3`。
 
 本项目不提供"更新版本"功能：版本号由维护者手动修改 `project-info.json` 并追加 `CHANGELOG.md` 条目。版本回滚仍然保留：CLI 的 **12. 回滚版本** 或 GUI 的"预览与维护 → 版本管理"会从 `old/` 中的快照恢复项目文件，回滚前自动在 `old/reseted/` 保存当前项目备份。
 
@@ -145,7 +157,7 @@ plugins/
     <入口>.ps1        # 插件入口
 ```
 
-本版本**不自带任何插件**（`plugins\` 目录会在安装插件时自动创建）。
+本版本**默认附带一个插件包**：发布包里的 `plugins\markdown-split-import.zip`（见上文「从 Markdown 拆分导入（插件）」），需要自己用插件管理器安装并启用；除此之外不自带其它插件。没装插件时 `plugins\` 里只有这个 zip，已安装的插件则是 `plugins\` 下的文件夹。
 
 > 自己写插件的话，请看文末的 **插件设计规范**：清单字段、配置与启用规则、生命周期、CLI/GUI 契约、打包与命名约定都在那里，本节只是使用说明。
 
@@ -200,8 +212,9 @@ plugins/
 | `defaultEnabled` | 否 | 未配置开关时的默认状态，缺省 `false` |
 | `cli.label` | 声明 `cli` 时必填 | CLI 菜单项文字 |
 | `cli.function` | 声明 `cli` 时必填 | 菜单被选中时无参调用的函数 |
-| `gui.controls` | 声明 `gui` 时必填 | 插件占用的已命名 XAML 控件列表 |
-| `gui.function` | 声明 `gui` 时必填 | 窗口初始化时无参调用的函数 |
+| `gui.panel` | 声明 `gui` 时推荐 | 插件要用的 GUI 控件列表，宿主运行时创建（见 §7） |
+| `gui.function` | 声明 `gui` 时必填 | 窗口初始化时无参调用的函数，负责给控件挂事件 |
+| `gui.controls` | 声明 `gui` 时二选一 | 旧写法：引用主程序已预留的 XAML 控件名 |
 
 > 上表是速查；每个字段的校验规则、CLI/GUI 的调用时机与失败处理，以文末 **插件设计规范** §3、§6、§7 为准。
 
@@ -209,7 +222,7 @@ plugins/
 
 宿主用 dot-source 载入 `entry`，插件因此运行在宿主作用域里，可直接使用 `$root`、`$config` / `$script:config`、`Get-Control`、`Show-Message`、`Show-Error`、`Show-TextDialog`、`Write-ProjectLog`、`Refresh-Articles`、`Pause-Menu`；插件脚本可以用 `Split-Path -Parent $MyInvocation.MyCommand.Path` 得到自己的目录。
 
-GUI 插件需要先在 `ProjectMe.Gui.xaml` 里预置自己要用的控件，并默认 `Visibility="Collapsed"`；插件启用且初始化成功后，宿主才按 `gui.controls` 把它们显示出来。这样即使插件文件夹被直接删除，界面上也不会残留入口。
+GUI 插件在清单里用 `gui.panel` 声明自己需要的控件（按钮、输入框、下拉框……），由宿主在运行时创建并套用主题：插件不用写 XAML，也不用等维护者在 `ProjectMe.Gui.xaml` 里预留控件名。控件默认隐藏，只有插件启用且初始化成功后才显示，所以插件被禁用或整个目录被删除时界面上不会残留入口。具体写法见下文「插件设计规范」§7。
 
 `.\Check-ProjectMe.ps1` 会顺带校验 `plugins/` 下每个插件的清单与入口文件。
 
@@ -220,7 +233,7 @@ GUI 插件需要先在 `ProjectMe.Gui.xaml` 里预置自己要用的控件，并
 下载新版本的完整包体（zip，或已解压的目录）后，在旧版安装目录运行一次更新器即可，**不需要手动解压覆盖，也不会碰你的文章**：
 
 ```powershell
-.\Update-ProjectMe.ps1 -Package .\ProjectMe-v1.1.10-Gen2.zip
+.\Update-ProjectMe.ps1 -Package .\ProjectMe-v1.1.11.zip
 ```
 
 更新器**自带全部所需函数，不加载安装目录里的 `ProjectMe.Common.ps1`**：它运行在旧版本上，而旧版本的公共脚本往往缺少新函数或新参数，依赖它会让更新直接失败。因此无论从多老的版本升级（包括 v1.1.6 这类早于更新器的版本），都能直接运行。
@@ -235,7 +248,8 @@ GUI 插件需要先在 `ProjectMe.Gui.xaml` 里预置自己要用的控件，并
 
 更新器会先打印计划（新增 / 更新 / 跳过各多少、具体是哪些文件），确认后才开始写入：
 
-- **永不写入、永不删除的用户数据**：`articles/`、`articles.json`、`timeline.json`、`projectme.config.json`、`.gitignore`、`logs/`、`old/`、`.git/`，以及各插件自己的 `plugins\<插件名>\config.json`。即使包体里带了同名文件也会跳过。
+- **永不写入、永不删除的用户数据**：`articles/`、`articles.json`、`timeline.json`、`projectme.config.json`、`.gitignore`、`logs/`、`old/`、`.git/`，以及**已安装的插件**——`plugins\<插件名>\` 整个目录（含入口脚本与它自己的 `config.json`）都不会被包体覆盖，插件的启用状态与设置都不会丢。即使包体里带了同名文件也会跳过。
+- **包体里附带的插件包照常落地**：本机还没有的插件包（如 `plugins\markdown-split-import.zip`）会被新增到 `plugins\`，装不装由你用插件管理器决定；更新计划里会单独列出因为“已经安装过”而被跳过的插件名。
 - **`project-info.json` 采用合并**：版本号取自包体，你本地自定义的 `title`、`author`、`copyright` 等保持不变。
 - **本地改过的程序文件**（例如 `styles.css`、`index.html`）：会被逐个询问「保留本地版本 / 用包体覆盖」，可随时改主意（`A` 之后全部覆盖、`L` 之后全部保留、`Q` 取消）；选择「保留」的还可以写入 `update.keep` 记住，下次不再询问。
 - **更新前自动备份**到 `old/v<旧版本>-<日期>-preupdate.zip`（不含 `.git/`）；写入过程中任何失败都会按文件精确回滚。
@@ -260,12 +274,26 @@ GUI 插件需要先在 `ProjectMe.Gui.xaml` 里预置自己要用的控件，并
 
 将 `index.html`、`404.html`、脚本、样式、`project-info.json`、`articles.json`、`timeline.json`、`articles/` 和 `CHANGELOG.md`（"ProjectMe 更新日志"文章直接引用它）一起部署到 GitHub Pages、Netlify 或其他静态托管服务即可。
 
+## 打包发布
+
+维护者用根目录的 `New-Release.ps1` 生成发布包：
+
+```powershell
+.\New-Release.ps1                        # 生成 .\ProjectMe-v<当前版本>.zip
+.\New-Release.ps1 -OutputDirectory D:\发布
+.\New-Release.ps1 -NoPlugin              # 只打主程序，不带插件包
+```
+
+- 版本号取自 `project-info.json`，包内顶层目录与包同名（解压出来就是一个可直接使用的安装目录）；包内文件与仓库根目录一致。
+- **默认把 `plugins\` 下所有插件包（`*.zip`）一起打进发布包**（本版本附带 `plugins\markdown-split-import.zip`），但不会打包 `plugins\` 下已安装的插件文件夹（那属于用户数据）。
+- 排除本地数据与产物：`old\`、`logs\`、`.git\`、`.projectme-serve.json`、`00Bugs.txt`、已有的 `ProjectMe-v*.zip`，以及打包脚本自身。
+
 ## 仓库
 
 - 仓库名称：`ProjectMe`；已执行 `git init`，尚未配置远程地址，需要发布时再 `git remote add origin <仓库地址>`。
-- 当前版本：`v1.1.10 Gen2`；本项目不提供自动"更新版本"功能，版本号由维护者手动维护，用户侧用 `Update-ProjectMe.ps1` 应用新包体。
+- 当前版本：`v1.1.11`（`project-info.json` 里 `version` = `1.1.11`、`generation` = `1`，`Gen1` 不显示）；本项目不提供自动"更新版本"功能，版本号由维护者手动维护，用户侧用 `Update-ProjectMe.ps1` 应用新包体。
 - 示例文章只有"ProjectMe 是什么"和"ProjectMe 更新日志"两篇，后者直接引用根目录的 `CHANGELOG.md`。
-- `logs/`、`old/` 与 `.projectme-serve.json` 是本地运行产物，已在 `.gitignore` 中排除。
+- `logs/`、`old/`、`.projectme-serve.json`、发布包 `ProjectMe-v*.zip` 与插件包 `plugins/*.zip` 都是本地运行 / 发布产物，已在 `.gitignore` 中排除。
 
 ## 作者与许可证
 
@@ -281,7 +309,9 @@ ProjectMe 由 [tianyimc.com](https://tianyimc.com) 设计与维护。作者主�
 
 ## 插件设计规范
 
-> 本节是插件开发的**规范性**参考（规范版本 1，对应 ProjectMe v1.1.10 Gen2）。上文「插件」一节是使用说明，两者冲突时以本节为准。
+> 本节是插件开发的**规范性**参考（规范版本 2，对应 ProjectMe v1.1.10 Gen3）。上文「插件」一节是使用说明，两者冲突时以本节为准。
+>
+> 规范版本 2 的变化：新增 `gui.panel`——第三方插件不再依赖维护者在 `ProjectMe.Gui.xaml` 里预留控件，GUI 入口由宿主按清单**运行时创建**（见 §7）。只声明 `gui.controls` 的旧写法仍然兼容。
 >
 > 条款分两级：**【硬性】**违反会导致插件无法安装、无法加载或破坏主程序；**【建议】**违反会影响可维护性与用户体验。
 
@@ -328,14 +358,17 @@ plugins/
 | `defaultEnabled` | 否 | 没写 `config.json` 时的默认开关，缺省 `false`（装完默认禁用） |
 | `cli.label` | 声明 `cli` 时必填 | CLI 菜单项文字，建议简短 |
 | `cli.function` | 声明 `cli` 时必填 | 菜单被选中时**无参**调用的函数名 |
-| `gui.controls` | 声明 `gui` 时必填 | 插件占用的已命名 XAML 控件列表（见 §7） |
+| `gui.panel` | 声明 `gui` 时二选一 | 插件要用的 GUI 控件列表，由宿主运行时创建（见 §7） |
 | `gui.function` | 声明 `gui` 时必填 | 窗口初始化时**无参**调用的函数名 |
+| `gui.controls` | 声明 `gui` 时二选一 | 旧写法：引用**主程序已预留**的 XAML 控件名 |
 
 校验规则由 `Test-ProjectPluginManifest` 实现，**安装与宿主加载都调用它**；`Check-ProjectMe.ps1` 会按同一套规则再校验一遍（那部分是它自己的实现）。规则是：
 
 - 【硬性】`entry` 非空，且该文件真实存在。
 - 【硬性】声明了 `cli` 对象时，`cli.label` 与 `cli.function` 都必须非空。
-- 【硬性】声明了 `gui` 对象时，`gui.function` 必须非空，且 `gui.controls` 至少有一个非空项。
+- 【硬性】声明了 `gui` 对象时，至少要有 `gui.panel` 或 `gui.controls` 之一；只写 `gui` 空对象视为非法。
+- 【硬性】`gui.function` 在声明了 `gui.panel` 时**必须非空**（宿主建好控件后要调用它挂事件）。
+- 【硬性】`gui.panel` 每项的 `id` 非空、同一插件内唯一，`type` ∈ `button` / `checkbox` / `textbox` / `text` / `combo`；`button` 必须写 `content`；`page` 只能是 `maintenance` / `articles` / `plugin`。
 - 【硬性】`plugin.json` 必须是合法 JSON，UTF-8 编码。
 - 【硬性】只声明自己真正提供的入口：只有 CLI 就只写 `cli`，只有 GUI 就只写 `gui`，两者都有就都写。
 
@@ -390,9 +423,9 @@ Save-ProjectPluginConfig -Id 'demo' -Config $config -Root $root
 1. **发现**：宿主扫描 `plugins\` 下每个文件夹，读取清单并给出状态 `ok` / `missing-manifest`（缺 `plugin.json`）/ `invalid-manifest`（清单非法）/ `missing-entry`（入口文件不存在）。
 2. **判定启用**：只有状态为 `ok` 的插件才可能启用；任何异常状态的插件一律视为禁用，且**不会执行它的任何代码**，只写一条日志。
 3. **加载**：宿主用 dot-source 把启用的入口载入宿主作用域。入口的顶层代码因此会执行；CLI 每次选中插件菜单都会重新 dot-source 一次，所以顶层代码必须**可重复执行**（不要去追加全局列表之类）。
-4. **注册**：CLI 追加菜单项（见 §6）；GUI 调用 `gui.function` 并显示 `gui.controls`（见 §7）。
+4. **注册**：CLI 追加菜单项（见 §6）；GUI 先按 `gui.panel` 创建控件，再调用 `gui.function`，初始化成功后才显示入口（见 §7）。
 5. **调用**：`cli.function` / `gui.function` 都是**无参**调用，插件函数不要声明必填参数。
-6. **失败处理**：插件抛异常时，CLI 记 `ERROR` 日志、在屏幕上提示后回到菜单；GUI 记日志、该插件声明的控件保持隐藏，主程序继续启动。
+6. **失败处理**：插件抛异常时，CLI 记 `ERROR` 日志、在屏幕上提示后回到菜单；GUI 记日志、撤销该插件申请的控件并保持隐藏，主程序继续启动。
 7. **安全模式**：`ProjectMe.ps1 -SafeMode` / `ProjectMe.Gui.ps1 -SafeMode` 让本次运行把全部插件视为禁用——不加载任何插件代码、不显示任何入口，也**不改写任何配置文件**。插件导致问题时先用它启动排查（CLI 菜单 **14. 插件管理器 → 7. 以安全模式启动** 也能带上这个开关）。
 
 ### 6. CLI 插件契约
@@ -420,12 +453,71 @@ Save-ProjectPluginConfig -Id 'demo' -Config $config -Root $root
 
 ### 7. GUI 插件契约
 
-- 【硬性】GUI 插件不能自己新建 XAML 控件：它只能使用**主程序已经在 `ProjectMe.Gui.xaml` 里声明好**的控件，且这些控件默认带 `Visibility="Collapsed"`。宿主在插件启用并初始化成功后，才按 `gui.controls` 把它们置为 `Visible`——所以插件被禁用或整个目录被删除时，界面上不会残留入口。
-- 【硬性】`gui.function` 在窗口初始化阶段无参调用，负责给控件挂事件、填初始内容。调用发生在**控件被显示之前**，所以函数里就应该把控件配置好。
+**一句话**：插件在 `plugin.json` 的 `gui.panel` 里声明自己需要哪些控件，宿主在窗口初始化时**运行时创建**这些控件、套好主题、放进预留的插件区域，再无参调用 `gui.function` 让插件给控件挂事件。第三方插件因此**不需要维护者改 `ProjectMe.Gui.xaml`**，也不需要自己写 XAML。
+
+#### 7.1 声明控件：`gui.panel`
+
+```json
+"gui": {
+  "function": "Initialize-DemoGui",
+  "panel": [
+    { "id": "run",    "type": "button",   "content": "运行导入", "page": "maintenance" },
+    { "id": "source", "type": "textbox",  "width": 260, "tooltip": "导入源目录" },
+    { "id": "dry",    "type": "checkbox", "content": "试运行" },
+    { "id": "hint",   "type": "text",     "content": "只读取源文件，不会改动 Obsidian 库。" },
+    { "id": "recent", "type": "button",   "content": "最近导入", "page": "plugin" }
+  ]
+}
+```
+
+| 字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `id` | 是 | 控件标识，同一插件内唯一。决定控件名（见下），只能用字母、数字、`-`、`_` |
+| `type` | 否 | `button`（默认）/ `checkbox` / `textbox` / `text` / `combo`；同义词 `btn`、`check`、`input`、`label`、`select` 也接受 |
+| `content` | `button` 必填 | 按钮文字 / 复选框标签 / 文本内容 |
+| `page` | 否 | 控件放哪个页面：`maintenance`（预览与维护页，除输入类以外的默认）/ `articles`（文章管理页，`textbox`、`combo` 的默认）/ `plugin`（插件页） |
+| `width` | 否 | 固定宽度（像素），适合输入框 |
+| `tooltip` | 否 | 鼠标悬停提示 |
+
+#### 7.2 取用控件：控件名与宿主 API
+
+控件名由 `id` 稳定推导，插件可以直接 `Get-Control`，更推荐用按 id 查找的 `Get-PluginControl`：
+
+| `type` | 控件名 | 备注 |
+| --- | --- | --- |
+| `button` | `<id>_button` | `System.Windows.Controls.Button` |
+| `checkbox` | `<id>_check` | `CheckBox`，用 `.IsChecked` 读状态 |
+| `textbox` | `<id>_input` | `TextBox`，用 `.Text` 读写 |
+| `combo` | `<id>_select` | `ComboBox`，宿主不填内容，插件自己 `$combo.Items.Add(...)` |
+| `text` | `<id>_text` | `TextBlock`，用 `.Text` 更新 |
+
+- 【硬性】`gui.function` 在窗口初始化阶段**无参**调用，负责给控件挂事件、填初始内容。宿主此时已把控件建好，但**还没显示**，所以函数里就应该把控件配置好。
+- 【硬性】`gui.function` 抛异常时，宿主会撤销该插件申请的控件（一并不再占据名称），只记 `ERROR` 日志，主程序继续启动。插件要保证自己的异常不会波及界面。
 - 【硬性】此阶段文章数据**还没有加载**（`Refresh-Articles` 在插件初始化之后才被调用）。需要使用文章列表的插件要自己先调 `Refresh-Articles`。
-- 【硬性】不要声明主程序自己已用的控件（例如 `PluginManagerButton`），那是劫持别人的界面。
-- 【建议】控件名全项目唯一；两个插件声明同一控件时，后加载者生效并记警告。
-- 【建议】取色用主题资源，不要硬编码颜色，否则深色/浅色主题下不协调：
+- 【硬性】不要试图创建主程序自己的控件或页面，也不要用 `$script:window.RegisterName` 抢占名字；插件只能使用 `gui.panel` 声明出来的控件（旧写法 `gui.controls` 引用的是主程序预留的控件名，见 §7.4）。
+- 【建议】用 `Get-PluginControl '<id>'` 而不是硬编码 `<id>_button`：前者同时接受控件 id 和完整控件名，可读性更好。
+- 【建议】控件名只在**同一窗口**内唯一。两个插件声明了同名 id 时，后加载的那个控件会被跳过并记警告，先加载的正常工作。
+
+#### 7.3 插件界面长什么样
+
+宿主在 `ProjectMe.Gui.xaml` 里预留了插件区域，全部默认 `Visibility="Collapsed"`：
+
+| 控件 | 位置 | 何时出现 |
+| --- | --- | --- |
+| `PluginsNavButton` | 侧栏导航「插件」 | 至少有一个启用的 GUI 插件时 |
+| `PluginPage` / `PluginHeaderPanel` / `PluginPagePanel` | 插件页（点侧栏「插件」进入） | 同上；`page = "plugin"` 的控件挂在这里 |
+| `MaintenancePluginHostPanel` / `PluginMaintenancePanel` | 预览与维护页底部「插件」卡片 | 有 `page = "maintenance"` 的控件时 |
+| `PluginArticlesPanel` | 文章管理页属性面板底部 | 有 `page = "articles"` 的控件时 |
+
+没有任何启用的 GUI 插件时，这些区域全部保持隐藏，界面与「没有插件」完全一致；插件被禁用或目录被删除后同样不残留。
+
+#### 7.4 兼容：`gui.controls`（旧写法）
+
+老插件可以继续用 `gui.controls: ["控件名"]` 声明它占用的**主程序已预留**控件（`x:Name` + 默认 `Visibility="Collapsed"`）。宿主仍会把这些控件显示出来，但这条路径要求维护者先往 `ProjectMe.Gui.xaml` 里加控件，只适合主程序自己的插件。**第三方插件请用 `gui.panel`。**
+
+#### 7.5 样式与线程
+
+- 【建议】`gui.panel` 创建的控件由宿主套用主题配色，插件通常不用管外观。确实要改色时用主题资源，不要硬编码，否则深色/浅色主题下不协调：
 
   ```powershell
   $button.Background = $script:window.Resources['AccentBrush']
@@ -438,11 +530,18 @@ Save-ProjectPluginConfig -Id 'demo' -Config $config -Root $root
 
 | 类别 | 名称 |
 | --- | --- |
-| 控件 | `Get-Control <名称>`、`Set-ControlText <控件> <值>`、`$script:window` |
+| 控件 | `Get-Control <名称>`、`Get-PluginControl <控件 id 或名称>`、`Set-ControlText <控件> <值>`、`Set-PluginControlVisible <控件 id> <$true/$false>`、`$script:window` |
+| 能力探测 | `Test-PluginHostFeature <gui-panel / gui-page / plugin-nav>`（老宿主上没有这个函数，先用 `Get-Command` 判断） |
 | 对话框 | `Show-Message`、`Show-Error`、`Show-TextDialog <标题> <文本> [确认按钮文字]` |
-| 数据刷新 | `Refresh-Articles`、`Refresh-Timeline`、`Set-Page`（页面名取 `articles` / `maintenance` / `timeline`） |
+| 数据刷新 | `Refresh-Articles`、`Refresh-Timeline`、`Set-Page`（页面名取 `articles` / `maintenance` / `timeline` / `plugin`） |
 | 维护动作 | `Run-ProjectCheck`、`Open-Log`、`Start-Preview`、`Stop-Preview` |
-| 变量 | `$root`、`$script:config`、`$script:info`、`$script:articles`（插件初始化时为空） |
+| 变量 | `$root`、`$script:config`、`$script:info`、`$script:articles`（插件初始化时为空）、`$script:hostPluginId`（当前正在初始化的插件 Id） |
+
+> 跨版本提示：`gui.panel` 是 v1.1.10 Gen3 起才有的契约。插件若同时想兼容更老的宿主，可在入口里判断能力再决定是否注册 GUI 入口：
+>
+> ```powershell
+> $hostSupportsGuiPanel = $null -ne (Get-Command Test-PluginHostFeature -ErrorAction SilentlyContinue) -and (Test-PluginHostFeature 'gui-panel')
+> ```
 
 ### 8. 数据访问约定
 
@@ -552,26 +651,33 @@ Compress-Archive -Path .\demo\* -DestinationPath .\demo.zip -Force
 .\ProjectMe.ps1 -SafeMode                    # 安全模式：本次不加载任何插件（排障用）
 ```
 
-想要 GUI 入口时，除了在清单里声明 `gui`，还必须先由维护者在 `ProjectMe.Gui.xaml` 里预留控件（`x:Name` + 默认 `Visibility="Collapsed"`），例如：
-
-```xml
-<Button x:Name="DemoRunButton" Content="统计文章" Visibility="Collapsed"/>
-```
+想要 GUI 入口时，在同一个清单里加上 `gui`——**不需要改 `ProjectMe.Gui.xaml`**，也不需要先跟维护者约控件名：
 
 ```json
-"gui": { "controls": [ "DemoRunButton" ], "function": "Initialize-DemoGui" }
+"gui": {
+  "function": "Initialize-DemoGui",
+  "panel": [
+    { "id": "run",   "type": "button",  "content": "统计文章", "page": "maintenance" },
+    { "id": "query", "type": "textbox", "width": 220, "tooltip": "标题关键字" }
+  ]
+}
 ```
 
 ```powershell
 function Initialize-DemoGui {
-  $button = Get-Control 'DemoRunButton'          # 找不到只会记警告，不会报错
+  $button = Get-PluginControl 'run'              # 宿主已按 gui.panel 建好控件，按 id 直接取
   if ($null -eq $button) { return }
-  $button.Background = $script:window.Resources['AccentBrush']   # 跟随主题，不硬编码颜色
-  $button.Add_Click({ Refresh-Articles; Show-Message '文章列表已刷新。' })
+  $button.Add_Click({
+    Refresh-Articles
+    $query = (Get-PluginControl 'query').Text
+    Show-Message "文章列表已刷新（关键字：$query）。"
+  })
 }
 ```
 
-> 当前发布版**没有为第三方插件预留任何 GUI 控件**，所以第三方插件的 GUI 入口暂时不可用；新插件建议先只做 CLI 入口，或与维护者约好预留控件名。
+装好后：维护页底部出现「插件」卡片里的「统计文章」按钮，文章管理页的属性面板底部出现关键字输入框；插件被禁用或目录被删除后，两处入口都自动消失。
+
+> `gui.panel` 取代了早期的 `gui.controls`。老写法要求维护者先在 `ProjectMe.Gui.xaml` 里预留控件再声明控件名，第三方插件走不通，现在只作为兼容保留（见 §7.4）。
 
 ### 13. 提交前检查清单
 
@@ -582,7 +688,7 @@ function Initialize-DemoGui {
 - [ ] 只读写自己的 `config.json`，写回时保留 `enabled`；没有往 `projectme.config.json` 里塞数据。
 - [ ] 数据改动全部走宿主 API；导入源只读；批量操作前有备份。
 - [ ] 抛出异常、写坏配置、缺少宿主函数时，主程序仍能正常使用（只记日志）。
-- [ ] 声明了 `gui` 的话：控件已在 `ProjectMe.Gui.xaml` 里预留，且默认 `Collapsed`。
+- [ ] 声明了 `gui` 的话：`gui.panel` 的 `id` 唯一、`type` 合法、`button` 有 `content`；`gui.function` 能无参调用；没有依赖主程序私有控件。装好后确认入口出现在声明的页面上，禁用后消失。
 - [ ] `.\Check-ProjectMe.ps1` 通过；`-SafeMode` 下与「没有插件」表现一致。
 - [ ] 禁用或删除插件目录后，CLI/GUI 入口都消失，无残留。
 
@@ -594,7 +700,9 @@ function Initialize-DemoGui {
 | 清单字段校验 | `ProjectMe.Common.ps1` 的 `Test-ProjectPluginManifest`（安装与宿主加载调用它；`Check-ProjectMe.ps1` 按同一套规则自行校验） |
 | 插件配置读写 | `ProjectMe.Common.ps1` 的 `Get-ProjectPluginConfigPath`、`Get-ProjectPluginConfig`、`Save-ProjectPluginConfig`、`Set-ProjectPluginEnabled` |
 | CLI 菜单追加与调用 | `ProjectMe.ps1` 的 `Build-MainMenu` 与菜单循环中的插件分支 |
-| GUI 控件显示与初始化 | `ProjectMe.Gui.ps1` 的「插件宿主」代码块 |
+| GUI 控件契约与命名 | `ProjectMe.Common.ps1` 的 `ConvertTo-ProjectPluginGuiKey`、`Get-ProjectPluginGuiType`、`Get-ProjectPluginGuiPanelEntries`、`Get-ProjectPluginGuiControlName`、`Test-ProjectPluginGuiPanel` |
+| GUI 控件创建、显示与初始化 | `ProjectMe.Gui.ps1` 的「插件宿主：控件工厂」与「插件宿主」代码块 |
+| 插件界面预留控件 | `ProjectMe.Gui.xaml` 的 `PluginsNavButton`、`PluginPage`、`PluginHeaderPanel`、`PluginPagePanel`、`MaintenancePluginHostPanel`、`PluginMaintenancePanel`、`PluginArticlesPanel` |
 | 安装 / 升级 / 启用 / 卸载 | `Manage-Plugins.ps1` 的 `Install-PluginPackage`、`Set-PluginEnabledState`、`Uninstall-PluginPackage` |
 | 包内路径安全校验 | `ProjectMe.Common.ps1` 的 `Test-ProjectSafeZipEntry` |
 | 插件清单、入口与 `config.json` 自检 | `Check-ProjectMe.ps1` |
@@ -609,5 +717,5 @@ function Initialize-DemoGui {
 3. `gui.controls` 里声明了不存在的控件只记警告，入口也不会显示。
 4. 没有「宿主版本要求」字段（无 `minHostVersion`）。插件应在入口里用 `Get-Command` 自检依赖的宿主函数，缺失时明确报错。
 5. 插件之间的函数/变量重名没有检测，会互相覆盖（宿主只对重复的 GUI 控件名发警告）。
-6. 第三方插件无法自行新增 GUI 控件或页面，必须由维护者在 `ProjectMe.Gui.xaml` 预留。
+6. 插件只能往主程序预留的插件区域（维护页卡片、文章页底部、插件页）添加控件，不能新增导航项或整个页面；需要在别处放入口时仍要找维护者。
 7. `plugins/` 不在 `.gitignore` 里：打算只在本地使用的插件，请自行忽略，避免误提交。

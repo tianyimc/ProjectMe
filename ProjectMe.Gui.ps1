@@ -31,6 +31,177 @@ try {
 
   function Get-Control([string]$Name) { return $script:window.FindName($Name) }
   function Set-ControlText([object]$Control, [object]$Value) { $Control.Text = if ($null -eq $Value) { '' } else { [string]$Value } }
+
+  # --- 插件 GUI 宿主：控件工厂 ---
+  # 第三方插件不能自己写 XAML，宿主就在运行时可着插件清单里的声明造控件：
+  # 插件只声明“我要什么控件”，控件本身、主题配色和注册进名称作用域都交给宿主。
+  # 因此新增插件不再需要维护者改 ProjectMe.Gui.xaml。
+  function Set-ProjectPluginControlTheme([object]$Control, [string]$Kind) {
+    $window = $script:window
+    switch ($Kind) {
+      'button' {
+        $Control.Padding = New-Object Windows.Thickness(14, 8, 14, 8)
+        $Control.Margin = New-Object Windows.Thickness(0, 0, 8, 8)
+        $Control.MinHeight = 34
+        $Control.Cursor = [Windows.Input.Cursors]::Hand
+        $Control.Background = $window.Resources['SurfaceBackground']
+        $Control.Foreground = $window.Resources['TextPrimary']
+        $Control.BorderBrush = $window.Resources['BorderBrush']
+        $Control.BorderThickness = New-Object Windows.Thickness(1)
+      }
+      'checkbox' { $Control.Foreground = $window.Resources['TextPrimary']; $Control.Margin = New-Object Windows.Thickness(0, 0, 8, 8); $Control.VerticalAlignment = 'Center' }
+      'text' { $Control.Foreground = $window.Resources['TextSecondary']; $Control.TextWrapping = 'Wrap'; $Control.VerticalAlignment = 'Center'; $Control.Margin = New-Object Windows.Thickness(0, 0, 8, 8) }
+      default {
+        $Control.Padding = New-Object Windows.Thickness(8, 6, 8, 6)
+        $Control.Margin = New-Object Windows.Thickness(0, 0, 8, 8)
+        $Control.Background = $window.Resources['InputBackground']
+        $Control.Foreground = $window.Resources['TextPrimary']
+        $Control.BorderBrush = $window.Resources['BorderBrush']
+      }
+    }
+  }
+
+  function New-ProjectPluginGuiControl([object]$Entry, [string]$Id, [string]$PluginId) {
+    $type = Get-ProjectPluginGuiType ([string]$Entry.type)
+    if (-not $type) { throw "不支持的控件类型：$($Entry.type)" }
+    $name = Get-ProjectPluginGuiControlName -Id $Id -Type $type
+    $text = ''
+    foreach ($field in @('content', 'text', 'label')) {
+      if ($null -ne $Entry.PSObject.Properties[$field] -and -not [string]::IsNullOrWhiteSpace([string]$Entry.$field)) { $text = [string]$Entry.$field; break }
+    }
+    switch ($type) {
+      'button' { $control = New-Object Windows.Controls.Button; $control.Content = $text }
+      'checkbox' { $control = New-Object Windows.Controls.CheckBox; $control.Content = $text }
+      'text' { $control = New-Object Windows.Controls.TextBlock; $control.Text = $text }
+      'textbox' { $control = New-Object Windows.Controls.TextBox }
+      'combo' { $control = New-Object Windows.Controls.ComboBox }
+    }
+    [void](Set-ProjectPluginControlTheme -Control $control -Kind $type)
+    if ($null -ne $Entry.PSObject.Properties['width'] -and -not [string]::IsNullOrWhiteSpace([string]$Entry.width)) {
+      $width = 0.0
+      if ([double]::TryParse([string]$Entry.width, [ref]$width) -and $width -gt 0) { $control.Width = $width } else { Write-ProjectLog "插件 $PluginId 的控件 $Id 宽度无效，已忽略：$($Entry.width)" 'WARN' $root }
+    }
+    if ($null -ne $Entry.PSObject.Properties['tooltip'] -and -not [string]::IsNullOrWhiteSpace([string]$Entry.tooltip)) { $control.ToolTip = [string]$Entry.tooltip }
+    return [pscustomobject]@{ Id = $Id; Name = $name; Type = $type; Control = $control }
+  }
+
+  function Get-ProjectPluginGuiPage([object]$Entry) {
+    $page = 'maintenance'
+    if ($null -ne $Entry.PSObject.Properties['page'] -and -not [string]::IsNullOrWhiteSpace([string]$Entry.page)) {
+      $page = ([string]$Entry.page).Trim().ToLowerInvariant()
+      if ($page -notin @('plugin', 'maintenance', 'articles')) { throw "控件 page 只能是 plugin / maintenance / articles：$($Entry.page)" }
+    } elseif ((Get-ProjectPluginGuiType ([string]$Entry.type)) -in @('textbox', 'combo')) { $page = 'articles' }
+    return $page
+  }
+
+  function Get-ProjectPluginGuiHostPanel([string]$Page) {
+    if ($Page -eq 'plugin') { return Get-Control 'PluginPagePanel' }
+    if ($Page -eq 'articles') { return Get-Control 'PluginArticlesPanel' }
+    return Get-Control 'PluginMaintenancePanel'
+  }
+
+  function Register-ProjectPluginGuiPanel([object]$Plugin) {
+    $entries = @(Get-ProjectPluginGuiPanelEntries -Gui $Plugin.Manifest.gui)
+    if ($entries.Count -eq 0) { return @() }
+    $registered = New-Object System.Collections.Generic.List[string]
+    foreach ($entry in $entries) {
+      $id = ConvertTo-ProjectPluginGuiKey ([string]$entry.id)
+      $page = Get-ProjectPluginGuiPage -Entry $entry
+      # 行名用全局计数器，避免插件 Id 里不能进名称作用域的字符（空格、中文、'-' 等）带来歧义；
+      # 插件真正要用的名字是由控件 id 决定的 <id>_<类型>，与行名无关。
+      $script:pluginRowCounter++
+      $rowName = "pluginpanel_row_$($script:pluginRowCounter)"
+      $row = New-Object Windows.Controls.StackPanel
+      $row.Orientation = 'Horizontal'
+      $row.Margin = New-Object Windows.Thickness(10, 0, 0, 16)
+      $row.Visibility = 'Collapsed'
+      $created = New-ProjectPluginGuiControl -Entry $entry -Id $id -PluginId $Plugin.Id
+      $row.Children.Add($created.Control) | Out-Null
+      $panel = Get-ProjectPluginGuiHostPanel -Page $page
+      if ($null -eq $panel) { throw "预留的插件区域不存在（页面：$page），请先运行 Update-ProjectMe.ps1 还原 ProjectMe.Gui.xaml。" }
+      $panel.Children.Add($row) | Out-Null
+      # 控件名已被占用（另一个插件、或主程序自己预留的同名控件）时跳过这一个控件并记警告：
+      # 绝不覆盖已有控件，也不让 RegisterName 抛出的异常带走整个插件。
+      if ($null -ne $script:window.FindName($created.Name) -or $script:claimedControls.ContainsKey($created.Name)) {
+        Write-ProjectLog "插件 $($Plugin.Id) 的控件名已被占用，已跳过：$($created.Name)" 'WARN' $root
+        [void]$panel.Children.Remove($row)
+        continue
+      }
+      $registered.Add($created.Name) | Out-Null
+      try {
+        $script:window.RegisterName($rowName, $row)
+        $script:window.RegisterName($created.Name, $created.Control)
+      } catch {
+        Write-ProjectLog "插件 $($Plugin.Id) 的控件无法注册，已跳过 $($created.Name)：$($_.Exception.Message)" 'WARN' $root
+        [void]$panel.Children.Remove($row)
+        $registered.Remove($created.Name) | Out-Null
+        continue
+      }
+      $script:pluginControls[$created.Name] = $created.Control
+      $script:claimedControls[$created.Name] = $Plugin.Id
+      if (-not $script:pluginPages.Contains($page)) { $script:pluginPages.Add($page) | Out-Null }
+    }
+    if ($registered.Count -eq 0) { return @() }
+    Write-ProjectLog "插件 $($Plugin.Id) 的 GUI 控件已就绪：$($registered -join ', ')" 'INFO' $root
+    return $registered.ToArray()
+  }
+
+  # 控件先建好但保持隐藏；只有插件的 gui.function 成功跑完，宿主才把入口显示出来。
+  # 显示的是整行容器，控件名不变，插件仍可以 Get-Control '<id>_button' 取到它。
+  function Show-ProjectPluginGuiPanel([string[]]$Names) {
+    $shown = New-Object System.Collections.Generic.List[string]
+    foreach ($name in @($Names)) {
+      $control = $script:window.FindName($name)
+      if ($null -eq $control) { continue }
+      $target = $control
+      if ($null -ne $control.Parent -and $control.Parent -is [Windows.Controls.StackPanel]) { $target = $control.Parent }
+      $target.Visibility = 'Visible'
+      $shown.Add($name) | Out-Null
+    }
+    return $shown.ToArray()
+  }
+
+  function Unregister-ProjectPluginGuiPanel([object]$Plugin, [string[]]$Names) {
+    foreach ($name in @($Names)) {
+      $control = $script:window.FindName($name)
+      if ($null -eq $control) { continue }
+      $parent = $control.Parent
+      if ($null -ne $parent) { [void]$parent.Children.Remove($control) }
+      try { $script:window.UnregisterName($name) } catch { }
+      $script:pluginControls.Remove($name) | Out-Null
+      $script:claimedControls.Remove($name) | Out-Null
+    }
+    Write-ProjectLog "插件 $($Plugin.Id) 初始化失败，已撤销它申请的 GUI 控件。" 'WARN' $root
+  }
+
+  function Get-PluginControl([string]$Id) {
+    # 既接受清单里的控件 id（'run'），也接受完整控件名（'run_button'）。
+    $key = ConvertTo-ProjectPluginGuiKey $Id
+    if ($script:pluginControls.ContainsKey($key)) { return $script:pluginControls[$key] }
+    foreach ($registeredName in @($script:pluginControls.Keys)) {
+      if ($registeredName -match ('^' + [regex]::Escape($key) + '_[a-z]+$')) { return $script:pluginControls[$registeredName] }
+    }
+    return Get-Control $key
+  }
+
+  function Set-PluginControlVisible([string]$Id, [bool]$Visible) {
+    $control = Get-PluginControl $Id
+    if ($null -eq $control) { return $false }
+    # 控件本身在行容器里，所以整行一起显示/隐藏；控件名保持不变，插件仍可用 Get-Control 取到它。
+    $target = $control
+    if ($null -ne $control.Parent -and $control.Parent -is [Windows.Controls.StackPanel]) { $target = $control.Parent }
+    if ($Visible) { $target.Visibility = 'Visible' } else { $target.Visibility = 'Collapsed' }
+    return $true
+  }
+
+  function Test-PluginHostFeature([string]$Name) {
+    switch (([string]$Name).Trim().ToLowerInvariant()) {
+      { $_ -in @('', 'gui-panel', 'panel', 'plugin-gui') } { return $script:hostFeatures -contains 'gui-panel' }
+      { $_ -in @('gui-page', 'page') } { return $script:hostFeatures -contains 'gui-page' }
+      { $_ -in @('plugin-nav', 'nav') } { return $script:hostFeatures -contains 'plugin-nav' }
+      default { return $false }
+    }
+  }
   function Show-Message([string]$Message, [string]$Title = 'ProjectMe') { [System.Windows.MessageBox]::Show($script:window, $Message, $Title, 'OK', 'Information') | Out-Null }
   function Show-Error([string]$Message, [string]$Title = '操作失败') { [System.Windows.MessageBox]::Show($script:window, $Message, $Title, 'OK', 'Error') | Out-Null }
 
@@ -61,18 +232,18 @@ try {
     return $command.Source
   }
 
-  function Set-Page([ValidateSet('articles','maintenance','timeline')][string]$Page) {
-    $pages = @{ articles = 'ArticlesPage'; maintenance = 'MaintenancePage'; timeline = 'TimelinePage' }
-    $headers = @{ articles = 'ArticlesHeaderPanel'; maintenance = 'MaintenanceHeaderPanel'; timeline = 'TimelineHeaderPanel' }
+  function Set-Page([ValidateSet('articles','maintenance','timeline','plugin')][string]$Page) {
+    $pages = @{ articles = 'ArticlesPage'; maintenance = 'MaintenancePage'; timeline = 'TimelinePage'; plugin = 'PluginPage' }
+    $headers = @{ articles = 'ArticlesHeaderPanel'; maintenance = 'MaintenanceHeaderPanel'; timeline = 'TimelineHeaderPanel'; plugin = 'PluginHeaderPanel' }
     foreach ($key in $pages.Keys) {
       $visibility = 'Collapsed'
       if ($key -eq $Page) { $visibility = 'Visible' }
       (Get-Control $pages[$key]).Visibility = $visibility
       (Get-Control $headers[$key]).Visibility = $visibility
     }
-    foreach ($name in @('ArticlesNavButton','MaintenanceNavButton','TimelineNavButton')) {
+    foreach ($name in @('ArticlesNavButton','MaintenanceNavButton','TimelineNavButton','PluginsNavButton')) {
       $button = Get-Control $name; $resourceKey = 'SidebarBackground'
-      if (($name -eq 'ArticlesNavButton' -and $Page -eq 'articles') -or ($name -eq 'MaintenanceNavButton' -and $Page -eq 'maintenance') -or ($name -eq 'TimelineNavButton' -and $Page -eq 'timeline')) { $resourceKey = 'SidebarActive' }
+      if (($name -eq 'ArticlesNavButton' -and $Page -eq 'articles') -or ($name -eq 'MaintenanceNavButton' -and $Page -eq 'maintenance') -or ($name -eq 'TimelineNavButton' -and $Page -eq 'timeline') -or ($name -eq 'PluginsNavButton' -and $Page -eq 'plugin')) { $resourceKey = 'SidebarActive' }
       $button.Background = $script:window.Resources[$resourceKey]
     }
     if ($Page -eq 'articles') { Refresh-Articles }
@@ -276,30 +447,48 @@ try {
   (Get-Control 'MaintenanceStartButton').Add_Click({ try { Start-Preview (Get-Control 'MaintenancePortBox') } catch { Show-Error $_.Exception.Message '启动预览失败' } }); (Get-Control 'MaintenanceStopButton').Add_Click({ Stop-Preview }); (Get-Control 'MaintenanceForceStopButton').Add_Click({ if ([System.Windows.MessageBox]::Show($script:window,'会强制停止占用端口号4173、4174的进程','强停所有预览','YesNo','Warning') -eq 'Yes') { Stop-Preview; Show-Message '已强制停止 4173、4174 端口上的预览进程。' '强停所有预览' } }); (Get-Control 'MaintenanceOpenSiteButton').Add_Click({ Start-Process "http://localhost:$((Get-Control 'MaintenancePortBox').Text)/" }); (Get-Control 'MaintenanceCheckButton').Add_Click({ Run-ProjectCheck }); (Get-Control 'MaintenanceLogButton').Add_Click({ Open-Log }); (Get-Control 'PluginManagerButton').Add_Click({ try { Start-PluginManagerFromGui } catch { Show-Error $_.Exception.Message '打开插件管理器失败' } }); (Get-Control 'LoadSnapshotsButton').Add_Click({ Load-SnapshotsFromGui }); (Get-Control 'RollbackButton').Add_Click({ Rollback-VersionFromGui })
   (Get-Control 'TimelineSearchBox').Add_TextChanged({ Refresh-Timeline }); (Get-Control 'TimelineRefreshButton').Add_Click({ Refresh-Timeline }); (Get-Control 'TimelineGrid').Add_SelectionChanged({ Load-TimelineEntry }); (Get-Control 'TimelineSelectButton').Add_Click({ Select-TimelineArticle }); (Get-Control 'TimelineChooseArticleButton').Add_Click({ Select-TimelineArticle }); (Get-Control 'TimelineSaveButton').Add_Click({ try { Save-TimelineEntryFromGui } catch { Show-Error $_.Exception.Message } }); (Get-Control 'TimelineRemoveButton').Add_Click({ Remove-TimelineEntryFromGui })
   # --- 插件宿主 ---
-  # 插件在 plugins\<插件名>\plugin.json 中声明自己占用的 GUI 控件；这些控件在 XAML 中默认隐藏，
-  # 只有插件启用且初始化成功时才显示，因此插件被禁用或整个文件夹被删除时入口都不会出现。
+  # 见 README「插件设计规范」§7：第三方插件不能自己写 XAML，也不能要求维护者为它改
+  # ProjectMe.Gui.xaml，因此宿主在运行时按插件清单里的声明，在预留的插件区域里现造控件
+  # （gui.panel），并把控件注册进窗口名称作用域，插件用 Get-Control / Get-PluginControl 取用。
+  # 控件、入口和导航按钮都只有在插件启用且初始化成功时才出现，插件被禁用或目录被删除时不留残留。
+  $script:hostFeatures = @('gui-panel', 'gui-page', 'plugin-nav')
+  $script:pluginControls = @{}
+  $script:pluginPages = New-Object System.Collections.Generic.List[string]
+  $script:pluginRowCounter = 0
+  foreach ($hostControlName in @('PluginPage', 'PluginPagePanel', 'PluginMaintenancePanel', 'PluginArticlesPanel', 'PluginsNavButton')) {
+    if ($null -eq (Get-Control $hostControlName)) { Write-ProjectLog "预留的插件界面不完整，缺少控件 $hostControlName：请运行 Update-ProjectMe.ps1 还原 ProjectMe.Gui.xaml" 'WARN' $root }
+  }
   $script:plugins = @(Get-ProjectPlugins -Root $root -SafeMode:$script:safeMode | Where-Object { $_.Enabled })
   $script:claimedControls = @{}
   foreach ($plugin in $script:plugins) {
     $guiFunction = ''
     if ($null -ne $plugin.Manifest.PSObject.Properties['gui'] -and $null -ne $plugin.Manifest.gui) { $guiFunction = [string]$plugin.Manifest.gui.function }
-    if ([string]::IsNullOrWhiteSpace($guiFunction)) { Write-ProjectLog "已启用插件：$($plugin.Id)（无 GUI 入口）" 'INFO' $root; continue }
+    $panelNames = @()
     try {
+      # 插件在初始化时按需调用宿主 API（Get-Control / Get-PluginControl / Set-Page 等），
+      # $script:hostPluginId 供宿主函数判断当前正在初始化哪个插件。
+      $script:hostPluginId = $plugin.Id
       . ($plugin.EntryPath)
-      & $guiFunction
-      foreach ($controlName in @($plugin.Manifest.gui.controls)) {
-        $name = [string]$controlName
-        if ([string]::IsNullOrWhiteSpace($name)) { continue }
-        if ($script:claimedControls.ContainsKey($name)) { Write-ProjectLog "插件 $($plugin.Id) 与 $($script:claimedControls[$name]) 都声明了控件 $name，以 $($plugin.Id) 为准。" 'WARN' $root }
-        $script:claimedControls[$name] = $plugin.Id
-        $control = $script:window.FindName($name)
-        if ($null -ne $control) { $control.Visibility = 'Visible' }
-        else { Write-ProjectLog "插件 $($plugin.Id) 声明的控件不存在：$name" 'WARN' $root }
-      }
+      $panelNames = @(Register-ProjectPluginGuiPanel -Plugin $plugin)
+      if (-not [string]::IsNullOrWhiteSpace($guiFunction)) { & $guiFunction }
+      # 初始化成功后才显示入口：失败时下面 catch 里的 Unregister-ProjectPluginGuiPanel 会把它清干净。
+      if ($panelNames.Count -gt 0) { [void](Show-ProjectPluginGuiPanel -Names $panelNames) }
       Write-ProjectLog "已启用插件：$($plugin.Id)" 'INFO' $root
     } catch {
+      if ($panelNames.Count -gt 0) { try { Unregister-ProjectPluginGuiPanel -Plugin $plugin -Names $panelNames } catch { } }
       Write-ProjectLog "插件 $($plugin.Id) 初始化失败，入口保持隐藏：$($_.Exception.Message)`n$($_.ScriptStackTrace)" 'ERROR' $root
+    } finally {
+      $script:hostPluginId = ''
     }
+  }
+  # 只有真有插件控件时才显示插件页和侧栏入口，否则界面与“没有插件”时完全一致。
+  if ($script:pluginPages.Count -gt 0) {
+    (Get-Control 'PluginsNavButton').Visibility = 'Visible'
+    (Get-Control 'PluginsNavButton').Add_Click({ Set-Page plugin })
+    (Get-Control 'PluginPageIntroText').Text = "下列界面由已启用的插件提供：$(($script:plugins | ForEach-Object { $_.Id }) -join '、')"
+    if ($script:pluginPages.Contains('maintenance')) { (Get-Control 'MaintenancePluginHostPanel').Visibility = 'Visible' }
+  } else {
+    (Get-Control 'PluginPageEmptyText').Text = '当前没有提供界面入口的插件。安装并启用插件后，这里会出现它的入口。'
   }
 
   $script:window.Add_Closed({ Stop-Preview }); (Get-Control 'AuthorLink').Add_RequestNavigate({ param($sender, $eventArgs) try { Start-Process $eventArgs.Uri.AbsoluteUri } catch { }; $eventArgs.Handled = $true }); Refresh-Articles; Set-Page articles; [void]$script:window.ShowDialog()

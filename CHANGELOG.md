@@ -1,5 +1,26 @@
 # ProjectMe 更新日志
 
+## v1.1.11 - 2026-09-19
+- **默认附带插件「从 Markdown 拆分导入」**（id `markdown-split-import`，v1.1.0）：把任意 Markdown 文集目录按文件或 Markdown 标题层级拆分成文章后导入项目。发布包在 `plugins\markdown-split-import.zip` 里附带它，装好后默认禁用，启用命令见 `README.md` 的「从 Markdown 拆分导入（插件）」；导入源始终只读，插件设置保存在它自己的 `plugins\markdown-split-import\config.json`（属用户数据，不随包分发）。
+- **插件兼容适配（宿主侧）**：`ProjectMe.Gui.xaml` 新增 `CheckBox` / `ComboBox` / `ComboBoxItem` 三个隐式样式，用自绘 `ControlTemplate` 替换 WPF 里写死浅色系统画刷的默认模板。此前插件通过 `gui.panel` 声明的 `checkbox` / `combo` 控件在深色主题下是白底浅字（悬停态与下拉列表同样是白底，控件实例上设 `Background` 也盖不住），现在背景、边框、前景、箭头、悬停与选中态全部走 `DynamicResource` 引用当前调色板，浅色主题同样正常。
+- 下拉框的点击面用完全透明的 `ToggleButton` 模板，`PART_Popup` 按 `IsDropDownOpen` 模板绑定，控件命名与 WPF 默认模板一致，不影响既有代码取用模板部件。
+- CLI 主菜单的历史遗留项改为中文，与其余菜单项一致：`5. 运行自检`（原 `Check-ProjectMe`）、`6. 新建文章`（原 `New-Article`）、`7. 启动预览`（原 `serve`）；功能与脚本调用不变。
+- **更新器不再覆盖已安装的插件**：`Update-ProjectMe.ps1` 原先只保护 `plugins\<插件名>\config.json`，插件目录里的代码会被包体覆盖。现在安装目录里**已经存在**的插件（`plugins\<插件名>\` 整个目录，含入口脚本与配置）一律跳过，包体永不覆盖，插件的启用状态与设置都不会丢；包体携带的**新**插件包（如 `plugins\markdown-split-import.zip`）或本机还没有的插件目录仍会正常落地，更新计划里会单独列出被跳过的插件名。
+- 打包改为可复现：新增维护者脚本 `New-Release.ps1`，按 `project-info.json` 的版本生成 `ProjectMe-v<版本>.zip`（包内顶层目录与包同名），默认把 `plugins\` 下的插件包一并打进发布包，并排除 `old\`、`logs\`、`.git\`、`.projectme-serve.json`、`00Bugs.txt`、既有发布包与打包脚本自身。`.gitignore` 补上发布包目录与 `plugins/*.zip`（插件包属构建产物，不入库）。
+- `README.md` 的「版本规则」写清楚 `Gen` 的边界：`Gen` 是同一个 `C` 小版本内部更小的修复快照，**`C` 一提升就重置为 `Gen1`**（`1.1.10 Gen3` 的下一版是 `1.1.11`，不是 `1.1.11 Gen4`）。
+- 版本号提升到 v1.1.11（新的 `C`，`generation` 重置为 `1`，按规则显示为 `v1.1.11`，不带 `Gen` 后缀）。
+
+## v1.1.10 Gen3 - 2026-09-18
+- **新增第三方插件的 GUI 契约：插件不再需要维护者改 `ProjectMe.Gui.xaml`**。此前规范只允许插件声明「主程序已预留的 XAML 控件名」，而发布版没有为任何第三方插件预留控件，于是「从 Obsidian 导入」这类插件只能退回 CLI，GUI 入口无法合规保留。现在插件在 `plugin.json` 里用 `gui.panel` 声明自己需要的控件，由宿主在运行时创建。
+- 宿主在 `ProjectMe.Gui.ps1` 里按 `gui.function` + `gui.panel` 现造控件：类型支持 `button` / `checkbox` / `textbox` / `text` / `combo`，可选 `content`、`width`、`tooltip` 与 `page`（`maintenance` / `articles` / `plugin`，输入类控件默认落在文章页）。控件由宿主套用主题配色，插件不用碰 XAML 也不用硬编码颜色。
+- `ProjectMe.Gui.xaml` 预留了插件界面：侧栏「插件」导航项、插件页（`PluginsNavButton`、`PluginPage`、`PluginPagePanel`、`PluginHeaderPanel`）和维护页 / 文章页的插件入口区（`MaintenancePluginHostPanel`、`PluginMaintenancePanel`、`PluginArticlesPanel`），全部默认 `Visibility="Collapsed"`。没有任何启用的 GUI 插件时，界面与「没有插件」完全一致。
+- 控件名由控件 id 稳定推导（`<id>_button`、`<id>_input`、`<id>_check`、`<id>_select`、`<id>_text`）；插件可以 `Get-Control 'run_button'`，也可以用新增的 `Get-PluginControl 'run'` 直接按 id 取用，`Set-PluginControlVisible` 可按 id 显示或隐藏自己的入口。
+- 入口只在插件初始化成功后才显示；插件抛异常时它申请的控件会被撤销并移出界面，只写一条日志，主程序继续启动。控件名与主程序或其它插件冲突时跳过该控件并记警告，不再让 `RegisterName` 抛异常带走整个插件。
+- 新增宿主能力探测 `Test-PluginHostFeature`（`gui-panel` / `gui-page` / `plugin-nav`），插件可据此判断宿主是否支持新契约，再决定是否注册 GUI 入口。
+- `Check-ProjectMe.ps1` 按同一套规则校验清单里的 `gui.panel`：id 非空且唯一、类型合法、`button` 必须有 `content`、`page` 合法，并允许「只声明 `gui.controls`」的旧写法。
+- `README.md` 的插件设计规范更新到规范版本 2：新增 `gui.panel` 字段说明、§7 的完整 GUI 契约、最小示例插件的 GUI 入口示例，并删去「发布版没有为第三方插件预留任何 GUI 控件」的旧结论。
+- 版本号提升到 v1.1.10 Gen3。
+
 ## v1.1.10 Gen2 - 2026-09-15
 - **修复更新器在旧版本安装目录中必失败的问题**：`Update-ProjectMe.ps1` 原先会加载安装目录里的 `ProjectMe.Common.ps1`，而更新器天生要在旧版本上运行——旧 Common 缺少新函数或新参数（例如 v1.1.6 没有 `Test-ProjectSafeZipEntry`，`New-ProjectSnapshot` 不支持 `-Exclude`，`Get-SnapshotPath` 不支持 `-Label`），于是更新在第一步就报“无法将 … 项识别为 cmdlet、函数、脚本文件或可运行程序的名称”，任何版本跨度的更新都无法完成。
 - 更新器改为**自带全部所需实现**，不再依赖安装目录里的 `ProjectMe.Common.ps1`，只依赖 Windows PowerShell 5.1 本身；同时把 `-WhatIf`、插件配置保护、精确回滚等既有行为原样保留（函数使用 `Update-` 前缀，避免覆盖宿主函数）。

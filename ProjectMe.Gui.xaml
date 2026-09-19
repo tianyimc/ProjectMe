@@ -77,6 +77,144 @@
         </Trigger>
       </Style.Triggers>
     </Style>
+    <!-- CheckBox / ComboBox：WPF 默认模板内部用 StaticResource 写死了浅色系统画刷，
+         SearchBox 与插件控件（gui.panel 的 checkbox / combo）在深色主题下会出现白底浅字。
+         这里用隐式样式自绘模板，全部改为 DynamicResource 引用当前调色板。 -->
+    <Style TargetType="CheckBox">
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+      <Setter Property="Background" Value="{DynamicResource InputBackground}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Padding" Value="7,0,0,0"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="CheckBox">
+            <Grid Background="Transparent">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Border x:Name="CheckBoxBox" Width="17" Height="17" CornerRadius="3"
+                      Background="{TemplateBinding Background}"
+                      BorderBrush="{TemplateBinding BorderBrush}"
+                      BorderThickness="{TemplateBinding BorderThickness}"
+                      VerticalAlignment="Center" SnapsToDevicePixels="True">
+                <Path x:Name="CheckBoxCheck" Data="M 0,4 L 3.5,7.5 L 10,0.5" Stroke="{DynamicResource AccentBrush}"
+                      StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                      HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
+              </Border>
+              <ContentPresenter Grid.Column="1" Margin="{TemplateBinding Padding}"
+                                HorizontalAlignment="Left" VerticalAlignment="Center"
+                                RecognizesAccessKey="True"/>
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="CheckBoxCheck" Property="Visibility" Value="Visible"/>
+              </Trigger>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="CheckBoxBox" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+                <Setter TargetName="CheckBoxCheck" Property="Stroke" Value="{DynamicResource TextSecondary}"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style TargetType="ComboBox">
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+      <Setter Property="Background" Value="{DynamicResource InputBackground}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Padding" Value="10,6"/>
+      <Setter Property="MinHeight" Value="30"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="SnapsToDevicePixels" Value="True"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ComboBox">
+            <Grid>
+              <ToggleButton x:Name="DropDownToggle" Focusable="False" ClickMode="Press"
+                            IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                <ToggleButton.Template>
+                  <ControlTemplate TargetType="ToggleButton">
+                    <!-- 完全透明的点击面：默认 ToggleButton 模板会画出浅色按钮脸，白底问题会照旧出现 -->
+                    <Border Background="Transparent" BorderThickness="0"/>
+                  </ControlTemplate>
+                </ToggleButton.Template>
+              </ToggleButton>
+              <Border x:Name="ComboBorder" Background="{TemplateBinding Background}"
+                      BorderBrush="{TemplateBinding BorderBrush}"
+                      BorderThickness="{TemplateBinding BorderThickness}"
+                      CornerRadius="6">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                  </Grid.ColumnDefinitions>
+                  <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                    Content="{TemplateBinding SelectionBoxItem}"
+                                    ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                    ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                                    IsHitTestVisible="False"/>
+                  <Path x:Name="ComboArrow" Grid.Column="1" Margin="0,0,12,0" Data="M 0,0 L 5,5 L 10,0"
+                        Stroke="{DynamicResource TextSecondary}" StrokeThickness="1.6"
+                        StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                </Grid>
+              </Border>
+              <Popup x:Name="PART_Popup" Placement="Bottom" AllowsTransparency="True" Focusable="False"
+                     IsOpen="{TemplateBinding IsDropDownOpen}" PopupAnimation="Slide">
+                <Border x:Name="ComboPopupBorder" Background="{DynamicResource SurfaceBackground}"
+                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                        MinWidth="{TemplateBinding ActualWidth}" MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                        Margin="0,2,0,0" SnapsToDevicePixels="True">
+                  <ScrollViewer Margin="2" SnapsToDevicePixels="True">
+                    <ItemsPresenter/>
+                  </ScrollViewer>
+                </Border>
+              </Popup>
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="ComboBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+                <Setter TargetName="ComboArrow" Property="Stroke" Value="{DynamicResource TextSecondary}"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style TargetType="ComboBoxItem">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+      <Setter Property="Padding" Value="10,6"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ComboBoxItem">
+            <Border x:Name="ItemBorder" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+              <ContentPresenter/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsHighlighted" Value="True">
+                <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource AccentSoftBrush}"/>
+              </Trigger>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource AccentSoftBrush}"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
   </Window.Resources>
 
   <Grid>
@@ -95,6 +233,8 @@
           <Button x:Name="ArticlesNavButton" Content="文章管理" HorizontalContentAlignment="Left" Background="{DynamicResource SidebarActive}" Foreground="White" BorderBrush="Transparent" Margin="0,0,0,6"/>
           <Button x:Name="MaintenanceNavButton" Content="预览与维护" HorizontalContentAlignment="Left" Background="Transparent" Foreground="{DynamicResource SidebarText}" BorderBrush="Transparent" Margin="0,0,0,6"/>
           <Button x:Name="TimelineNavButton" Content="时间轴" HorizontalContentAlignment="Left" Background="Transparent" Foreground="{DynamicResource SidebarText}" BorderBrush="Transparent" Margin="0,0,0,6"/>
+          <!-- 插件导航入口：由插件宿主在确有启用的 GUI 插件时显示，默认隐藏。 -->
+          <Button x:Name="PluginsNavButton" Content="插件" HorizontalContentAlignment="Left" Background="Transparent" Foreground="{DynamicResource SidebarText}" BorderBrush="Transparent" Margin="0,0,0,6" Visibility="Collapsed"/>
           <Button x:Name="AboutNavButton" Content="关于项目" HorizontalContentAlignment="Left" Background="Transparent" Foreground="{DynamicResource SidebarText}" BorderBrush="Transparent"/>
         </StackPanel>
       </DockPanel>
@@ -131,9 +271,31 @@
           <Button x:Name="TimelineSelectButton" Content="选入文章" Style="{StaticResource PrimaryButton}" Margin="0"/>
         </StackPanel>
       </Grid>
+      <Grid x:Name="PluginHeaderPanel" Visibility="Collapsed">
+        <StackPanel>
+          <TextBlock Text="插件" Style="{StaticResource TitleTextStyle}" FontSize="25" Foreground="{DynamicResource TextPrimary}"/>
+          <TextBlock Text="已启用插件提供的功能入口" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap"/>
+        </StackPanel>
+      </Grid>
     </Grid>
 
     <Grid Grid.Column="1" Grid.Row="1" Margin="30,4,30,18">
+      <!-- 插件页：第三方插件的预留界面。插件不能自己写 XAML，
+           因此本页里的控件全部由宿主运行时按 plugin.json 的声明创建。
+           插件被禁用或目录被删除时，本页保持隐藏且不残留入口。 -->
+      <ScrollViewer x:Name="PluginPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+          <Border Background="{DynamicResource SurfaceBackground}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="24">
+            <StackPanel>
+              <TextBlock Text="插件" Style="{StaticResource TitleTextStyle}" FontSize="18" Foreground="{DynamicResource TextPrimary}"/>
+              <TextBlock x:Name="PluginPageIntroText" Foreground="{DynamicResource TextSecondary}" Margin="0,4,0,16" TextWrapping="Wrap"/>
+              <StackPanel x:Name="PluginPagePanel"/>
+              <TextBlock x:Name="PluginPageEmptyText" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+
       <Grid x:Name="ArticlesPage">
         <Grid.ColumnDefinitions><ColumnDefinition Width="1.08*"/><ColumnDefinition Width="0.92*"/></Grid.ColumnDefinitions>
         <Border Grid.Column="0" Background="{DynamicResource SurfaceBackground}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12">
@@ -166,6 +328,8 @@
               <StackPanel Grid.Column="2"><TextBlock Text="目录颜色" Style="{DynamicResource FieldLabelStyle}"/><TextBox x:Name="ColorBox"/></StackPanel>
             </Grid>
             <StackPanel Orientation="Horizontal" Margin="0,8,0,0"><Button x:Name="SaveArticleButton" Content="保存属性" Style="{StaticResource PrimaryButton}"/><Button x:Name="OpenArticleButton" Content="打开正文"/><Button x:Name="DeleteArticleButton" Content="删除文章" Foreground="#FFFFFF" Background="#B3261E" BorderBrush="#B3261E" IsEnabled="False"/></StackPanel>
+            <!-- 插件入口区：声明 page = "articles" 的插件控件会挂在这里（默认留空）。 -->
+            <StackPanel x:Name="PluginArticlesPanel" Margin="0,14,0,0"/>
           </StackPanel></ScrollViewer>
         </Border>
       </Grid>
@@ -192,6 +356,14 @@
               <TextBlock Text="版本管理" Style="{StaticResource TitleTextStyle}" FontSize="18" Foreground="{DynamicResource TextPrimary}"/>
               <TextBlock x:Name="CurrentVersionText" Foreground="{DynamicResource TextSecondary}" Margin="0,4,0,16" TextWrapping="Wrap"/>
               <StackPanel><TextBlock Text="回滚版本号" Style="{DynamicResource FieldLabelStyle}"/><TextBox x:Name="RollbackVersionBox"/><Button x:Name="LoadSnapshotsButton" Content="加载快照"/><DataGrid x:Name="SnapshotGrid" Height="130" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" Margin="0,8,0,8"><DataGrid.Columns><DataGridTextColumn Header="快照" Binding="{Binding Name}" Width="2*"/><DataGridTextColumn Header="时间" Binding="{Binding LastWriteTime}" Width="*"/></DataGrid.Columns></DataGrid><Button x:Name="RollbackButton" Content="回滚选中快照"/></StackPanel>
+            </StackPanel>
+          </Border>
+          <!-- 插件入口区：声明 page = "maintenance" 的插件控件会挂在这里，默认隐藏。 -->
+          <Border x:Name="MaintenancePluginHostPanel" Background="{DynamicResource SurfaceBackground}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="24" Margin="0,16,0,0" Visibility="Collapsed">
+            <StackPanel>
+              <TextBlock Text="插件" Style="{StaticResource TitleTextStyle}" FontSize="18" Foreground="{DynamicResource TextPrimary}"/>
+              <TextBlock Text="这些按钮由插件声明，插件被禁用或删除后会自动消失。" Foreground="{DynamicResource TextSecondary}" Margin="0,4,0,16" TextWrapping="Wrap"/>
+              <StackPanel x:Name="PluginMaintenancePanel"/>
             </StackPanel>
           </Border>
         </StackPanel>

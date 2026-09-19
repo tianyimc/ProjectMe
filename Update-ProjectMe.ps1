@@ -1,15 +1,18 @@
 ﻿# ProjectMe 无损更新器
 #
 # 用法：
-#   .\Update-ProjectMe.ps1 -Package .\ProjectMe-v1.1.10-Gen2.zip
+#   .\Update-ProjectMe.ps1 -Package .\ProjectMe-v1.1.11.zip
 #   .\Update-ProjectMe.ps1 -Package .\解压后的新版本目录 -WhatIf
-#   .\Update-ProjectMe.ps1 -Package .\ProjectMe-v1.1.10-Gen2.zip -Overwrite
-#   .\Update-ProjectMe.ps1 -Package .\ProjectMe-v1.1.10-Gen2.zip -ProjectRoot D:\ProjectMe
+#   .\Update-ProjectMe.ps1 -Package .\ProjectMe-v1.1.11.zip -Overwrite
+#   .\Update-ProjectMe.ps1 -Package .\ProjectMe-v1.1.11.zip -ProjectRoot D:\ProjectMe
 #
 # 行为：
 #   * 只写入包体内的“程序文件”，用户数据（articles/、articles.json、timeline.json、
-#     projectme.config.json、.gitignore、logs/、old/、.git/、各插件自己的 plugins\<插件名>\config.json）
-#     永不写入、永不删除；
+#     projectme.config.json、.gitignore、logs/、old/、.git/）永不写入、永不删除；
+#   * 插件是用户数据：**安装目录里已经存在的插件**（plugins\<插件名>\ 整个目录，含它自己的
+#     config.json 与代码）一律跳过，包体永远不会覆盖它；包体里携带的**新**插件包（例如
+#     plugins\markdown-split-import.zip）或本机还没有的插件目录仍会正常落地，用户可在插件管理器里安装。
+#     因此更新不会动你已装好的插件，也不会丢插件的启用状态与设置；
 #   * project-info.json 采用合并策略：版本号（含 Gen）取自包体，其余键保留本地值；
 #   * 更新前自动在 old\ 生成完整备份，失败时按文件精确回滚；
 #   * 本地内容与包体不同的文件会逐个询问“保留本地版本 / 用包体覆盖”。
@@ -276,13 +279,24 @@ function Save-ProjectUpdateKeep([string]$Root, [string[]]$Patterns) {
 function Test-ProjectProtectedPath([string]$Relative) {
   $normalized = $Relative -replace '/', '\'
   if ($script:ProtectedFiles -contains $normalized) { return $true }
-  # 插件自己的配置文件属于用户数据
-  if ($normalized -match '^plugins\\[^\\]+\\config\.json$') { return $true }
   foreach ($directory in $script:ProtectedDirectories) {
     if ($normalized -eq $directory) { return $true }
     if ($normalized.StartsWith($directory + '\', [StringComparison]::OrdinalIgnoreCase)) { return $true }
   }
   return $false
+}
+
+# 插件属于用户数据。规则：
+#   * 安装目录里**已经存在**的插件（plugins\<插件名>\ 整个目录，含它自己的 config.json、
+#     入口脚本与其它文件）一律跳过——包体永不覆盖，插件的开关与设置都不会丢；
+#   * 本机还没有的插件目录，以及 plugins\ 下的 .zip 插件包，视作包体内容正常落地，
+#     这样新版附带的插件仍然能交付给用户，再由插件管理器安装。
+function Test-ProjectProtectedPluginPath([string]$Root, [string]$Relative) {
+  $normalized = $Relative -replace '/', '\'
+  $match = [regex]::Match($normalized, '^plugins\\([^\\]+)\\')
+  if (-not $match.Success) { return $false }
+  $pluginDirectory = Join-Path (Join-Path $Root 'plugins') $match.Groups[1].Value
+  return (Test-Path -LiteralPath $pluginDirectory -PathType Container)
 }
 
 function Test-ProjectKeptPath([string]$Relative, [string[]]$Patterns) {
@@ -400,7 +414,7 @@ try {
     if ($hints.Count -gt 0) {
       $message += "`n在项目里找到了这些包体，请核对路径：`n  " + (@($hints | Select-Object -First 10) -join "`n  ")
     } else {
-      $message += "`n请传入完整的 zip 路径或解压后的目录，例如：-Package .\ProjectMe-v1.1.10-Gen2.zip"
+      $message += "`n请传入完整的 zip 路径或解压后的目录，例如：-Package .\ProjectMe-v1.1.11.zip"
     }
     throw $message
   }
@@ -449,6 +463,7 @@ try {
   foreach ($item in $packageFiles) {
     if ($item.Relative -eq 'project-info.json') { continue }
     if (Test-ProjectProtectedPath $item.Relative) { $protectedHits.Add($item.Relative); continue }
+    if (Test-ProjectProtectedPluginPath -Root $root -Relative $item.Relative) { $protectedHits.Add($item.Relative); continue }
     if (Test-ProjectKeptPath $item.Relative $keepPatterns) { $keptHits.Add($item.Relative); continue }
     $destination = Join-Path $root $item.Relative
     $localHash = Get-ProjectFileHashValue $destination
@@ -475,6 +490,13 @@ try {
   }
   if ($protectedHits.Count) {
     Write-Host ("包体中的 {0} 个用户数据文件已跳过（永不覆盖），例如：{1}" -f $protectedHits.Count, (@($protectedHits | Select-Object -First 5) -join ', ')) -ForegroundColor DarkGray
+  }
+  # 已安装的插件整个目录都跳过，单独说明一句，避免用户以为插件被更新了
+  $protectedPlugins = @($protectedHits |
+    ForEach-Object { if (([string]$_ -replace '/', '\') -match '^plugins\\([^\\]+)\\') { $Matches[1] } } |
+    Where-Object { $_ } | Sort-Object -Unique)
+  foreach ($pluginId in $protectedPlugins) {
+    Write-Host ("已安装插件未覆盖（保留本地版本与设置）：plugins\{0}\" -f $pluginId) -ForegroundColor DarkGray
   }
   if ($keptHits.Count) {
     Write-Host ("按 -Keep / update.keep 保留的包体文件 {0} 个，例如：{1}" -f $keptHits.Count, (@($keptHits | Select-Object -First 5) -join ', ')) -ForegroundColor DarkGray

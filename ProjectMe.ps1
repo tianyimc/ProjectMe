@@ -199,9 +199,9 @@ function Build-MainMenu([object]$Config, [switch]$SafeMode) {
     [pscustomobject]@{ Number = 2; Label = '编辑文章属性'; Kind = 'builtin'; Action = 'edit' }
     [pscustomobject]@{ Number = 3; Label = '删除文章'; Kind = 'builtin'; Action = 'remove' }
     [pscustomobject]@{ Number = 4; Label = 'GUI 窗口管理器'; Kind = 'builtin'; Action = 'gui' }
-    [pscustomobject]@{ Number = 5; Label = 'Check-ProjectMe'; Kind = 'builtin'; Action = 'check' }
-    [pscustomobject]@{ Number = 6; Label = 'New-Article'; Kind = 'builtin'; Action = 'new' }
-    [pscustomobject]@{ Number = 7; Label = 'serve'; Kind = 'builtin'; Action = 'serve' }
+    [pscustomobject]@{ Number = 5; Label = '运行自检'; Kind = 'builtin'; Action = 'check' }
+    [pscustomobject]@{ Number = 6; Label = '新建文章'; Kind = 'builtin'; Action = 'new' }
+    [pscustomobject]@{ Number = 7; Label = '启动预览'; Kind = 'builtin'; Action = 'serve' }
     [pscustomobject]@{ Number = 8; Label = '服务状态'; Kind = 'builtin'; Action = 'status' }
     [pscustomobject]@{ Number = 9; Label = '停止后台服务'; Kind = 'builtin'; Action = 'stop' }
     [pscustomobject]@{ Number = 10; Label = '查看 CLI 日志'; Kind = 'builtin'; Action = 'log' }

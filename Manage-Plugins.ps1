@@ -52,7 +52,7 @@ if ($commonParseErrors.Count -gt 0) {
   throw ("插件管理器无法加载 {0}：该文件有 {1} 处解析错误（旧版本常见原因是含中文的 .ps1 未保存为带 BOM 的 UTF-8）。请先在该目录运行 Update-ProjectMe.ps1 更新项目。" -f $commonPath, $commonParseErrors.Count)
 }
 $commonText = Get-Content -Raw -Encoding UTF8 $commonPath
-$requiredCommonFunctions = @('Get-ProjectPlugins', 'Get-ProjectPluginConfig', 'Set-ProjectPluginEnabled', 'Test-ProjectPluginManifest', 'Test-ProjectSafeZipEntry', 'Write-ProjectJsonAtomic', 'Write-ProjectLog')
+$requiredCommonFunctions = @('Get-ProjectPlugins', 'Get-ProjectPluginConfig', 'Set-ProjectPluginEnabled', 'Test-ProjectPluginManifest', 'Test-ProjectSafeZipEntry', 'Write-ProjectJsonAtomic', 'Write-ProjectLog', 'Get-ProjectPluginGuiPanelEntries', 'Get-ProjectPluginGuiType')
 $missingCommonFunctions = @($requiredCommonFunctions | Where-Object { $commonText -notmatch ('function\s+' + [regex]::Escape($_) + '\b') })
 if ($missingCommonFunctions.Count -gt 0) {
   throw ("插件管理器需要与主程序同版本：{0} 里的 ProjectMe.Common.ps1 缺少 {1}。请先在该目录运行 Update-ProjectMe.ps1 更新项目，或用 -ProjectRoot 指向已更新的安装目录。" -f $root, ($missingCommonFunctions -join '、'))
@@ -469,6 +469,21 @@ while ($true) {
           Write-Host "目录：$($plugin.Root)"
           if ($plugin.Status -eq 'ok') { Write-Host "入口：$($plugin.EntryPath)" }
           if ($plugin.Problem) { Write-Host "问题：$($plugin.Problem)" -ForegroundColor Yellow }
+          if ($plugin.Status -eq 'ok' -and $null -ne $plugin.Manifest -and $null -ne $plugin.Manifest.PSObject.Properties['gui'] -and $null -ne $plugin.Manifest.gui) {
+            # GUI 入口由宿主按清单声明在运行时创建；这里只提示入口位置，方便用户知道装完后去哪里看。
+            $panelItems = @(Get-ProjectPluginGuiPanelEntries -Gui $plugin.Manifest.gui)
+            $legacyControls = @($plugin.Manifest.gui.controls | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+            if ($panelItems.Count -gt 0) {
+              $pageNames = @{ plugin = '插件页'; maintenance = '预览与维护页'; articles = '文章管理页' }
+              $pageList = @($panelItems | ForEach-Object {
+                $page = if ($_.PSObject.Properties['page'] -and -not [string]::IsNullOrWhiteSpace([string]$_.page)) { ([string]$_.page).Trim().ToLowerInvariant() } elseif ((Get-ProjectPluginGuiType ([string]$_.type)) -in @('textbox', 'combo')) { 'articles' } else { 'maintenance' }
+                if ($pageNames.ContainsKey($page)) { $pageNames[$page] } else { $page }
+              } | Select-Object -Unique)
+              Write-Host "GUI 入口：$($panelItems.Count) 个控件，位于 $(($pageList) -join '、')（由宿主运行时创建，无需改 ProjectMe.Gui.xaml）" -ForegroundColor DarkGray
+            } elseif ($legacyControls.Count -gt 0) {
+              Write-Host "GUI 入口：引用主程序预留控件 $(($legacyControls) -join ', ')（旧写法 gui.controls）" -ForegroundColor DarkGray
+            }
+          }
           Write-Host "插件配置：$($plugin.Id)\config.json$(if (Test-Path $plugin.ConfigPath -PathType Leaf) { '' } else { '（尚未生成；启用或首次保存时创建）' })"
           Write-Host ''
           Write-Host (Get-Content -Raw -Encoding UTF8 (Join-Path $plugin.Root 'plugin.json'))

@@ -3,3 +3,8 @@ logs/
 old/
 .projectme-delete-*.tmp
 ProjectMe-v*.zip
+# 插件包是构建产物（发布包里附带的 plugins\markdown-split-import.zip 由打包脚本生成），不入库
+plugins/*.zip
+# 发布包（Release）产物，不入库
+Release/
+00Bugs.txt

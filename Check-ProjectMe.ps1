@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $indexPath = Join-Path $root 'articles.json'
 $articlesPath = Join-Path $root 'articles'
@@ -76,8 +76,43 @@ if (Test-Path $pluginsPath -PathType Container) {
       if ([string]::IsNullOrWhiteSpace([string]$manifest.cli.function)) { throw "Plugin cli.function is required: $manifestPath" }
     }
     if ($null -ne $manifest.PSObject.Properties['gui'] -and $null -ne $manifest.gui) {
-      if ([string]::IsNullOrWhiteSpace([string]$manifest.gui.function)) { throw "Plugin gui.function is required: $manifestPath" }
-      if (@($manifest.gui.controls | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -eq 0) { throw "Plugin gui.controls is required: $manifestPath" }
+      # 第三方插件不能自己写 XAML：GUI 入口要么用清单 gui.panel 声明控件（宿主运行时现造），
+      # 要么用 gui.controls 引用主程序已经预留的控件名。两者至少要有一个，见 README 插件设计规范 §7。
+      $declaredControls = @($manifest.gui.controls | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+      $panelEntries = @()
+      if ($null -ne $manifest.gui.PSObject.Properties['panel'] -and $null -ne $manifest.gui.panel -and $manifest.gui.panel -isnot [string]) {
+        if ($manifest.gui.panel -is [array]) { $panelEntries = @($manifest.gui.panel | Where-Object { $null -ne $_ }) }
+        else { $panelEntries = @($manifest.gui.panel) }
+      }
+      $guiFunctionName = ''
+      if ($null -ne $manifest.gui.PSObject.Properties['function'] -and $null -ne $manifest.gui.PSObject.Properties['function'].Value) { $guiFunctionName = ([string]$manifest.gui.PSObject.Properties['function'].Value).Trim() }
+      if ([string]::IsNullOrWhiteSpace($guiFunctionName) -and $panelEntries.Count -eq 0 -and $declaredControls.Count -eq 0) {
+        throw "Plugin gui.function is required (or declare gui.panel / gui.controls): $manifestPath"
+      }
+      if ($panelEntries.Count -gt 0 -and [string]::IsNullOrWhiteSpace($guiFunctionName)) {
+        throw "Plugin gui.function is required when gui.panel is declared: $manifestPath"
+      }
+      $seenIds = @{}
+      $allowedTypes = @('button', 'checkbox', 'textbox', 'text', 'combo')
+      foreach ($panelEntry in $panelEntries) {
+        $panelId = ([string]$panelEntry.id).Trim().ToLowerInvariant()
+        $panelId = [regex]::Replace($panelId, '[^a-z0-9]+', '_').Trim('_')
+        if ([string]::IsNullOrWhiteSpace($panelId)) { throw "Plugin gui.panel id is required: $manifestPath" }
+        if ($seenIds.ContainsKey($panelId)) { throw "Plugin gui.panel id is duplicated ($panelId): $manifestPath" }
+        $seenIds[$panelId] = $true
+        $panelType = ([string]$panelEntry.type).Trim().ToLowerInvariant()
+        if ($panelType -eq '') { $panelType = 'text' }
+        if ($panelType -eq 'label' -or $panelType -eq 'textblock') { $panelType = 'text' }
+        if ($panelType -eq 'btn') { $panelType = 'button' }
+        if ($panelType -eq 'check' -or $panelType -eq 'bool') { $panelType = 'checkbox' }
+        if ($panelType -eq 'input' -or $panelType -eq 'edit') { $panelType = 'textbox' }
+        if ($panelType -eq 'combobox' -or $panelType -eq 'select' -or $panelType -eq 'list') { $panelType = 'combo' }
+        if ($allowedTypes -notcontains $panelType) { throw "Plugin gui.panel type must be button/checkbox/textbox/text/combo ($panelId): $manifestPath" }
+        if ($panelType -eq 'button' -and [string]::IsNullOrWhiteSpace([string]$panelEntry.content)) { throw "Plugin gui.panel button needs content ($panelId): $manifestPath" }
+        if ($null -ne $panelEntry.PSObject.Properties['page'] -and -not [string]::IsNullOrWhiteSpace([string]$panelEntry.page)) {
+          if (@('plugin', 'maintenance', 'articles') -notcontains ([string]$panelEntry.page).Trim().ToLowerInvariant()) { throw "Plugin gui.panel page must be plugin/maintenance/articles ($panelId): $manifestPath" }
+        }
+      }
     }
     $entryPath = Join-Path $folder.FullName ([string]$manifest.entry)
     if (-not (Test-Path $entryPath -PathType Leaf)) { throw "Plugin entry file missing: $entryPath" }
